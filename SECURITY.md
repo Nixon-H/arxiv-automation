@@ -12,7 +12,7 @@
 This is a research tool for authorized arXiv endorsement outreach. If you find a security vulnerability:
 
 1. **Do not** open a public GitHub issue
-2. Email the maintainer at aditya@example.com
+2. Email the maintainer at adit14920251@gmail.com
 3. Include a description, reproduction steps, and impact assessment
 
 You should receive a response within 48 hours.
