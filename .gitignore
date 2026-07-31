@@ -43,3 +43,6 @@ Thumbs.db
 # Sensitive / local-only
 endorsement_data.md
 site/
+
+# Local transformer-survey endorser list (real names, never commit)
+endorsers_transformer.txt
