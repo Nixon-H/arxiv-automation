@@ -53,10 +53,14 @@ class Database:
             raise
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
-        return self._get_conn().execute(sql, params)
+        cur = self._get_conn().execute(sql, params)
+        self._get_conn().commit()
+        return cur
 
     def executemany(self, sql: str, params: list[tuple]) -> sqlite3.Cursor:
-        return self._get_conn().executemany(sql, params)
+        cur = self._get_conn().executemany(sql, params)
+        self._get_conn().commit()
+        return cur
 
     def fetchone(self, sql: str, params: tuple = ()) -> dict[str, Any] | None:
         row = self._get_conn().execute(sql, params).fetchone()
