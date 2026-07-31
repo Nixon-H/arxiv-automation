@@ -96,11 +96,21 @@ Automated, production-grade email dispatch system for requesting arXiv endorseme
 
 ## Installation
 
+**Quick install from PyPI** (recommended):
+
+```bash
+pip install arxiv-automation
+```
+
+**Or from source:**
+
 ```bash
 git clone https://github.com/Nixon-H/arxiv-automation.git
 cd arxiv_automation
 pip install -e .
 ```
+
+Both install the `arxiv-mail` CLI. After installing, run `arxiv-mail --init` to set up config and `.env`, then run it again — a sample `endorsers.txt` is created for you if none exists.
 
 ### Optional dependencies
 
