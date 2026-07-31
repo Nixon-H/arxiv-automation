@@ -164,6 +164,8 @@ Gmail requires an **App Password** (2-Step Verification must be enabled):
 
 ### 3. Prepare your materials
 
+> If `endorsers.txt` is missing, the first run creates a sample file for you to edit — you don't have to start from scratch.
+
 - `endorsers.txt` — one record per endorser (see sample format below)
 - `template.txt` / `template.html` — your email templates with `{{ var }}` placeholders
 - `my_paper.pdf` — your manuscript (validated for PDF header)
