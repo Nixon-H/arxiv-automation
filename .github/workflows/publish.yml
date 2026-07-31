@@ -1,0 +1,58 @@
+name: publish
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/**'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'Nixon-H'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Install build tooling
+        run: pip install --quiet build
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Compare version against PyPI
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PYPI_JSON=$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['name'])")/json")
+          if [ "$PYPI_JSON" = "404" ]; then
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            echo "No existing release on PyPI — will publish."
+          else
+            LOCAL=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+            REMOTE=$(curl -s "https://pypi.org/pypi/$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['name'])")/json" | python -c "import json,sys;print(json.load(sys.stdin)['info']['version'])")
+            if [ "$LOCAL" != "$REMOTE" ]; then
+              echo "new=true" >> "$GITHUB_OUTPUT"
+              echo "New version ${LOCAL} (PyPI has ${REMOTE}) — will publish."
+            else
+              echo "new=false" >> "$GITHUB_OUTPUT"
+              echo "Version ${LOCAL} already on PyPI — skipping."
+            fi
+          fi
+
+      - name: Publish to PyPI
+        if: steps.check.outputs.new == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true

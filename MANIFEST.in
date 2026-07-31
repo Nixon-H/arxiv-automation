@@ -1,0 +1,7 @@
+include README.md
+include LICENSE
+include run.py
+include template.txt
+include template_followup.txt
+include endorsers.txt
+recursive-include locales *.json
