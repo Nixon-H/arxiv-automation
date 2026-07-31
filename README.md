@@ -10,57 +10,87 @@ Automated, production-grade email dispatch system for requesting arXiv endorseme
 
 ## Features
 
-### Core Dispatch
-- **Multi-account routing** — health-aware adaptive selection (success rate + latency weighted)
-- **Per-provider rate limiting** — gmail 20/h 200/d, outlook 15/h 150/d (configurable)
-- **SMTP connection pooling** with capability detection (STARTTLS, AUTH mechanisms, SIZE, PIPELINING, 8BITMIME)
-- **Error classification** — 8-class taxonomy with recovery strategies (hard/soft bounce, auth, rate-limit, timeout, TLS, DNS, permanent)
-- **Randomized exponential backoff** with jitter between retries
-- **Bounce processing** — 30+ SMTP response codes mapped to actions + text-pattern fallback
-- **DNS validation** — MX lookup, A-record fallback, disposable email detection
+### Core Dispatch Engine
+- **Multi-account routing** — health-aware adaptive selection: picks the healthiest account by weighted success rate + average latency
+- **Per-provider rate limiting** — gmail 20/h 200/d, outlook 15/h 150/d (configurable per account), enforced in-process + persisted in DB across restarts
+- **SMTP connection pooling** — `SmtpConnectionPool` reuses authenticated connections, lazy reconnects on failure
+- **SMTP capability detection** — after EHLO+STARTTLS+EHLO, inspects `esmtp_features`: STARTTLS, AUTH (with supported mechanisms listed: LOGIN/PLAIN/XOAUTH2...), SIZE, PIPELINING, 8BITMIME, SMTPUTF8, DSN. Exposed via `get_account_capabilities()` / `all_capabilities()`
+- **Provider fingerprinting** — SMTP banner matched against 12 provider patterns (Google, M365/Exchange, Postfix, Exim, Sendmail, Zimbra, etc.) with domain-based fallback
+- **Error classification** — 8-class taxonomy (`SmtpErrorClass`): authentication, permanent, temporary, timeout, rate-limited, DNS, hard/soft bounce, TLS, unknown — each with a recovery strategy
+- **Randomized exponential backoff** with jitter (`2^n * rand(0.8, 1.5)`) between retries
+- **Bounce processing** — 30+ SMTP response codes (421→554) mapped to actions + bounce types, regex text-pattern fallback, bounce DB table, hard-bounced recipients auto-skipped on future runs, recovery advice per bounce type
+- **DNS validation** — MX lookup (dnspython w/ dig fallback), A-record fallback, disposable-email domain blacklist
+- **Parallel DNS validation** — `validate_emails_parallel()` via ThreadPoolExecutor
+- **Email fingerprinting** — SHA256 body hash stored per send to prevent duplicate sends
+- **Correlation IDs** — `uuid4().hex[:12]` generated per send, threaded through the full pipeline (SMTP → DB → structured logs) so one send is traceable end-to-end
 
 ### Data & Parsing
-- Multi-format input: **TXT / CSV / JSON / YAML / XLSX** with auto-detection
-- Unicode normalization (NFKC)
-- In-file duplicate detection with per-category stats:
+- Multi-format input: **TXT / CSV / JSON / YAML / XLSX** with magic-byte + extension auto-detection (TXT supports whitespace- or `|`-separated)
+- Unicode normalization (NFKC) on all name/paper fields
+- **In-file duplicate detection** with per-category stats:
   - Duplicate email
   - Duplicate (name + paper)
   - Duplicate exact record hash
-- PDF header validation for your manuscript
+  - Reported as `Duplicates skipped — Email: N, Name/Paper: N, Exact: N`
+- PDF header validation (`%PDF-` magic) for your manuscript
+- File integrity + checksum verification (SHA256/MD5)
+- Contact history per recipient (first/last contact, total sends, bounces)
 
-### Template Engine
+### Template & Content Engine
 - Multi-template rotation with **HTML + plain-text** pair support
 - Subject-line rotation (anti-spam-signature diversity)
-- Signature profiles
+- Signature profiles with variants
 - Auto plain-text generation from HTML (`strip_html`)
-- Template linting (greeting, line length, spacing) and HTML tag-balance sanity checks
-- Render validation (all `{{ var }}` placeholders resolved)
-- **Email quality scoring** — 0–100 composite score with A–F grade (spam triggers, broken links, lint issues)
+- Template caching with mtime-based auto-reload (`get_cache_stats()`)
+- **Template linting** — greeting presence, lines >120 chars, multiple spaces, empty paragraphs
+- **HTML sanity checks** — tag balance verification for 12 HTML tags
+- **Render validation** — `get_required_vars()` + `validate_context()` ensures all `{{ var }}` placeholders resolve
+- **Email quality scoring** — 0–100 composite score with A–F grade: missing subject/body, 30+ spam trigger words, broken links, attachment validation, lint + HTML issues — shown per email in dry-run and live sends
+- Anti-spam headers: `List-Unsubscribe`, `X-Mailer`, `User-Agent`, `Reply-To`, custom headers
+- **Archive sent emails** — every successful send saved as `sent/YYYY-MM-DD_Name.eml` (full MIME structure)
 
 ### Safety & Reliability
-- **File locking** (`fcntl.flock`) — prevents concurrent runs
-- **Atomic SQLite transactions** — crash recovery without corruption
-- **Versioned schema migrations** — `schema_version` + `migration_history`
-- Auto-backup of progress state
-- Secret redaction in all logs (7 regex patterns + env var detection)
-- **Frozen (immutable) config** after validation
-- Pre-flight checks + `--doctor` diagnostic (16+ checks incl. DKIM/SPF/DMARC, cert info, template diff)
+- **File locking** (`fcntl.flock`) — prevents concurrent runs on the same state
+- **Atomic SQLite transactions** — crash recovery without corruption, `VACUUM` support
+- **Versioned schema migrations** — `schema_version` + `migration_history` tables (currently schema v4: latency_details, body_fingerprint + smtp_conversation, correlation_id migrations)
+- Auto-backup of progress state (`data/backups/progress_*.json`)
+- **Secret redaction in all logs** — 7 regex patterns + env-var auto-detection, `***REDACTED***`
+- **Immutable config** — frozen dataclasses post-validation (`config_version: 2`, auto-upgrade from v1)
+- **Encrypted credential store** — Fernet-encrypted `.credentials.enc` (cryptography lib)
+- Pre-flight checks (`--verify`): templates, PDF, config, accounts, DNS
+- **`--doctor` diagnostic (16+ checks)**: file existence, imports, writability, CLI tools, Python version, SMTP auth, **DKIM/SPF/DMARC** (SPF record, DKIM selector, DMARC policy via dig), TLS cert info (issuer/subject/expiry), attachment validation, template git-diff detection
+- **Diagnostic bundle** — `--doctor=bundle` → `diagnostics.zip` (config, logs, DB, templates, plugins)
+- **Interactive resume prompt** before batch sends ("Resume from #N? [Enter=yes, n=restart]")
 
 ### Observability
-- Structured JSON logging (`.jsonl`) with **correlation IDs** per send
-- Per-phase delivery latency: DNS → connect → EHLO → TLS → AUTH → DATA → TOTAL
-- Prometheus metrics endpoint (`/metrics`)
-- Rich HTML dashboard with SVG pie charts and latency timeline
+- Structured JSON logging (`.jsonl`) with severity, recipient, account, status, latency, correlation ID
+- **Per-phase delivery latency** — DNS → SMTP connect → EHLO → TLS handshake → AUTH → DATA → TOTAL, stored as JSON in DB
+- **Prometheus metrics endpoint** (`/metrics`) — counters, gauges, histograms (sends, failures, latency)
+- **Rich HTML dashboard** — SVG pie charts (outcome distribution, duplicate breakdown), send-latency timeline (last 50 sends), account health table with success rates
 - Export reports: JSON / CSV / HTML
-- Diagnostic bundle: `--doctor=bundle` → `diagnostics.zip`
+- **Domain reputation report** — per-domain success rate + avg latency table in `--stats`
+- Execution stats dashboard (`--stats`) with runtime counters
 
 ### Extensibility
-- **Plugin architecture** — lifecycle hooks:
+- **Plugin architecture** — drop-in `plugins/` directory, auto-discovered, 6 lifecycle hooks:
   - `@hook_before_send` / `@hook_after_send`
   - `@hook_before_validate` / `@hook_after_failure`
   - `@hook_after_retry` / `@hook_before_archive`
-- i18n (en / fr / zh)
-- Notifications: Discord / Slack / Desktop
+- i18n (en / fr / zh) via JSON locale files, `--locale` flag
+- Notifications: Discord / Slack / Desktop (notify-send / osascript / win10toast), completion summaries
+- **Interactive setup wizard** — `--init` guides multi-account config creation
+- **Named SMTP profiles** in config (multiple providers per account entry)
+- Scheduler generation: cron line + systemd service/timer units
+- **`arxiv-mail` CLI** — pip-installable entry point
+
+### Developer Experience
+- **100 tests** across 9 test files (unit + fuzz), 0.29s runtime
+- **Fuzz testing** — random malformed TXT/CSV/JSON/binary/huge-lines/special-chars thrown at the parser
+- **GitHub Actions CI** — ruff lint, mypy typecheck, test matrix (Python 3.10/3.11/3.12 × Ubuntu/macOS/Windows), coverage upload, bandit + pip-audit + safety security scanning
+- **Pre-commit hooks** — ruff, mypy, bandit, yaml/json fixers
+- **Makefile** — `make test / lint / typecheck / security / doctor / clean / all`
+- **Semantic release** config with conventional-commit enforcement
+- Docs: README, CHANGELOG, CONTRIBUTING (with architecture + sequence diagrams), SECURITY, MIT LICENSE
 
 ---
 
