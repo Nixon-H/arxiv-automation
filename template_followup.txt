@@ -1,0 +1,14 @@
+Respected {{ greeting }},
+
+I trust this email finds you in good spirits and good health. I wrote to you recently about my paper titled "{{ your_paper_title }}", which I am preparing to submit to arXiv under the {{ arxiv_category }} category.
+
+I understand how busy you must be, and I am grateful for your time in reading my earlier message. I wanted to gently check whether you might have had a chance to consider my request.
+
+If you would be willing to endorse my submission, I would be truly grateful. If you have any questions or require any further information about my work, please do not hesitate to ask.
+
+Thank you very much for your time and consideration.
+
+Best regards,
+
+{{ your_name }}
+Independent Researcher

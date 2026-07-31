@@ -238,13 +238,14 @@ class SmtpConnectionPool:
         t0 = int(time.time() * 1000)
         try:
             context = ssl.create_default_context()
-            server = smtplib.SMTP(acct.server, acct.port, timeout=self.timeout)
+            server = smtplib.SMTP(timeout=self.timeout)
+            banner_code, banner_msg = server.connect(acct.server, acct.port)
+            server._host = acct.server
             phases["smtp_connect"] = int(time.time() * 1000) - t0
 
             # Provider detection from banner
             try:
-                banner_code, banner_msg = server.getreply()
-                provider = detect_smtp_provider(banner_msg.decode() if isinstance(banner_msg, bytes) else str(banner_msg))
+                provider = detect_smtp_provider(str(banner_msg))
                 domain_provider = detect_provider_from_domain(acct.email)
                 detected = provider if provider != "Unknown/Generic" else domain_provider
                 AppLogger.info(f"SMTP provider [{acct.email}]: {detected} (banner says: {provider}, domain suggests: {domain_provider})")

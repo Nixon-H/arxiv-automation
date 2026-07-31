@@ -1,0 +1,64 @@
+site_name: arXiv Automation
+site_description: Automated arXiv endorsement outreach engine
+repo_url: https://github.com/Nixon-H/arxiv-automation
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep orange
+      accent: amber
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep orange
+      accent: amber
+  features:
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - content.code.copy
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - toc:
+      permalink: true
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [.]
+          options:
+            show_source: true
+            show_root_heading: true
+            docstring_style: google
+nav:
+  - Home: index.md
+  - Quick Start: quickstart.md
+  - CLI Reference: cli.md
+  - Configuration: configuration.md
+  - Input Format: input-format.md
+  - Templates: templates.md
+  - API Reference:
+      - Core:
+          - Config: api/core/config.md
+          - Database: api/core/database.md
+          - Logger: api/core/logger.md
+          - Validator: api/core/validator.md
+          - Tracker: api/core/tracker.md
+          - Doctor: api/core/doctor.md
+      - Engine:
+          - Orchestrator: api/engine/orchestrator.md
+          - SMTP: api/engine/smtp.md
+          - Templates: api/engine/templates.md
+          - Plugins: api/engine/plugins.md
+      - Parsing:
+          - Parser: api/parsing/parser.md
+          - Bounce: api/parsing/bounce.md
+      - Exports:
+          - Report: api/exports/report.md
+  - Development: development.md
+  - Security: security.md

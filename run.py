@@ -62,6 +62,10 @@ Examples:
                        help="Start Prometheus metrics endpoint")
     group.add_argument("--init", action="store_true",
                        help="Interactive configuration wizard")
+    group.add_argument("--followups", nargs="?", const="7", metavar="DAYS",
+                       help="List recipients due for follow-up (default 7 days; combine with --send N to send)")
+    group.add_argument("--mark-replied", metavar="EMAIL",
+                       help="Mark a recipient as replied (stops follow-ups)")
 
     parser.add_argument("--send", type=int, dest="send_n", default=0,
                         help="Number of emails to send in batch (with --live)")

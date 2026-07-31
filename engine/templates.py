@@ -148,6 +148,13 @@ class TemplateEngine:
             idx = random.randrange(len(self._txt_cache))
         return self._interpolate(self._txt_cache[idx], context)
 
+    def render_file(self, path: str, context: Dict[str, Any]) -> str:
+        """Render an arbitrary template file (e.g. follow-up template)."""
+        if not os.path.exists(path):
+            raise TemplateRenderError(f"Template file not found: {path}")
+        with open(path, "r", encoding="utf-8") as f:
+            return self._interpolate(f.read(), context)
+
     def render_html(self, context: Dict[str, Any], variant: Optional[int] = None) -> str:
         self._check_reload()
         if variant is not None and 0 <= variant < len(self._html_cache):

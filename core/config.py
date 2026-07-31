@@ -92,6 +92,7 @@ class AppConfig:
             "random_delay_range_seconds": list(sl.random_delay_range_seconds),
             "max_retries": sl.max_retries,
             "initial_backoff_seconds": sl.initial_backoff_seconds,
+            "attach_pdf": sl.attach_pdf,
         }
 
     @property

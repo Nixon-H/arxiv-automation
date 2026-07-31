@@ -48,6 +48,20 @@ NAME_REGEX = re.compile(
 )
 
 
+TITLE_REGEX = re.compile(
+    r"^(Dr\.?|Prof\.?|Professor|Mr\.?|Ms\.?|Miss|Mrs\.?|Sir|Madam)\b",
+    re.IGNORECASE
+)
+
+
+def extract_title(full_line: str) -> str:
+    match = TITLE_REGEX.match(full_line.strip())
+    if match:
+        title = match.group(1)
+        return "Dr." if title.lower() == "dr" else "Mr." if title.lower() == "mr" else "Ms." if title.lower() == "ms" else title
+    return ""
+
+
 def clean_name(text: str) -> str:
     return re.sub(r"[\d\W_]+", " ", text).strip()
 
@@ -70,6 +84,27 @@ class DataParser:
         return records
 
     @classmethod
+    def _sniff_format(cls, file_path: str) -> str:
+        """Magic-byte sniffing: detect format from content when extension is
+        missing, unknown, or the extension-based parser yielded nothing."""
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                head = f.read(2048).lstrip()
+        except OSError:
+            return "txt"
+
+        if head.startswith(("{", "[")):
+            return "json"
+        if head.startswith(("---", "%YAML", "name:")) or "\nname:" in head[:512]:
+            return "yaml"
+        first_line = head.split("\n", 1)[0].lower()
+        if any(k in first_line for k in ("last_name", "email", "paper_title")) and "," in first_line:
+            return "csv"
+        if first_line.count(",") >= 2:
+            return "csv"
+        return "txt"
+
+    @classmethod
     def auto_detect_with_stats(cls, file_path: str) -> Tuple[List[Dict[str, str]], DuplicateStats]:
         if not os.path.exists(file_path):
             return [], DuplicateStats()
@@ -85,10 +120,17 @@ class DataParser:
             ".xlsx": cls.parse_xlsx,
         }
 
-        parser = parsers.get(ext, cls.parse_txt)
-        raw = parser(file_path)
+        raw = []
+        if ext in parsers:
+            raw = parsers[ext](file_path)
         if not raw:
-            AppLogger.warn(f"No records parsed from {file_path} using {ext} parser")
+            sniffed = cls._sniff_format(file_path)
+            if sniffed != ext.lstrip("."):
+                AppLogger.info(f"Extension {ext or '(none)'} yielded nothing — sniffed content as {sniffed}")
+            sniff_parser = parsers.get(f".{sniffed}", cls.parse_txt)
+            raw = sniff_parser(file_path)
+        if not raw:
+            AppLogger.warn(f"No records parsed from {file_path}")
             return [], DuplicateStats()
 
         clean, stats = cls._deduplicate(raw)
@@ -147,6 +189,10 @@ class DataParser:
                 )
                 continue
 
+            if "|" in lines[0]:
+                records.extend(cls._parse_pipe_block(block_idx, lines))
+                continue
+
             destination_email = lines[-1]
             if not validate_email_format(destination_email):
                 AppLogger.warn(
@@ -157,14 +203,47 @@ class DataParser:
             first_line = lines[0]
             paper_title = lines[1]
             last_name = extract_last_name(first_line)
+            title = extract_title(first_line)
 
             records.append({
                 "last_name": normalize_unicode(last_name),
+                "title": title,
                 "email": destination_email.lower().strip(),
                 "paper_title": normalize_unicode(paper_title),
             })
 
         return records
+
+    @classmethod
+    def _parse_pipe_block(cls, block_idx: int, lines: List[str]) -> List[Dict[str, str]]:
+        """Handle `Name | email | paper title` lines (pipe-separated TXT)."""
+        out: List[Dict[str, str]] = []
+        for line in lines:
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) < 3:
+                AppLogger.warn(f"Pipe line #{block_idx}: expected 3 fields (name | email | paper), got {len(parts)}")
+                continue
+            name, email, paper = parts[0], parts[1], " | ".join(parts[2:])
+            if not validate_email_format(email):
+                AppLogger.warn(f"Pipe line #{block_idx}: invalid email: '{email}'")
+                continue
+            title = extract_title(name)
+            last_name = extract_last_name(name)
+            if title:
+                rest = re.sub(r"^" + re.escape(title), "", name, flags=re.IGNORECASE).strip()
+            else:
+                rest = name
+            cleaned = clean_name(rest)
+            name_parts = cleaned.split()
+            if name_parts:
+                last_name = name_parts[-1]
+            out.append({
+                "last_name": normalize_unicode(last_name),
+                "title": title,
+                "email": email.lower().strip(),
+                "paper_title": normalize_unicode(paper),
+            })
+        return out
 
     @classmethod
     def parse_csv(cls, file_path: str) -> List[Dict[str, str]]:

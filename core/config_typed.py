@@ -42,6 +42,7 @@ class SafetyLimits:
     random_delay_range_seconds: Tuple[float, float] = (5.0, 15.0)
     max_retries: int = 3
     initial_backoff_seconds: float = 2.0
+    attach_pdf: bool = False
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,7 @@ class TypedConfig:
                 random_delay_range_seconds=delay_tuple,
                 max_retries=int(limits_data.get("max_retries", 3)),
                 initial_backoff_seconds=float(limits_data.get("initial_backoff_seconds", 2.0)),
+                attach_pdf=bool(limits_data.get("attach_pdf", False)),
             ),
             accounts=[
                 SMTPAccount(

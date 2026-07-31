@@ -4,6 +4,7 @@ import random
 import argparse
 import webbrowser
 import email.policy
+import uuid
 from email.message import EmailMessage
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -122,6 +123,14 @@ class OrchestrationRunner:
 
         if self.args.scheduler:
             self.generate_scheduler()
+            return
+
+        if self.args.followups is not None:
+            self.run_followups(int(self.args.followups))
+            return
+
+        if self.args.mark_replied:
+            self.mark_replied(self.args.mark_replied)
             return
 
         if self.args.metrics:
@@ -259,10 +268,89 @@ class OrchestrationRunner:
         self.notifier.send_completion(self.stats)
         self.lock.release()
 
+    def run_followups(self, days: int) -> None:
+        candidates = self.db.get_followup_candidates(days, max_followups=2)
+        if not candidates:
+            AppLogger.info(f"No follow-ups due (no-reply recipients, last send > {days}d, followups < 2).")
+            return
+        AppLogger.info(f"Follow-up candidates ({len(candidates)}):")
+        for c in candidates:
+            print(f"  {c['last_name']:<28} {c['email']:<40} sends={c['send_count']} followups={c['followup_count']} last={c['last_send_at']}")
+
+        send_n = self.args.send_n or 0
+        if send_n <= 0:
+            AppLogger.info("Add --send N to send follow-ups to the first N candidates.")
+            return
+        if not self.typed_accounts:
+            AppLogger.error("No SMTP accounts configured.")
+            return
+
+        confirm = input(f"Send follow-ups to first {send_n} candidate(s)? [y/N]: ").strip().lower()
+        if confirm not in ("y", "yes"):
+            AppLogger.info("Cancelled.")
+            return
+
+        sent = 0
+        for c in candidates[:send_n]:
+            context = {
+                "last_name": c["last_name"],
+                "title": "",
+                "greeting": c["last_name"],
+                "paper_title": c["paper_title"],
+                "your_name": self.identity["your_name"],
+                "your_paper_title": self.identity["your_paper_title"],
+                "arxiv_category": self.identity["arxiv_category"],
+                "recipient": c["email"],
+            }
+            try:
+                body = self.templates.render_file("template_followup.txt", context)
+            except Exception as e:
+                AppLogger.error(f"Follow-up render failed: {e}")
+                break
+            subject = f"Follow-up: {self.identity['your_paper_title']}"
+            corr_id = uuid.uuid4().hex[:12]
+            success, err_class, latency_ms, err_msg, _phases = self.smtp_engine.send_atomic(
+                account_idx=0,
+                recipient_email=c["email"],
+                subject=subject,
+                text_content=body,
+                html_content=body,
+                attachment_path=None,
+                correlation_id=corr_id,
+            )
+            if success:
+                self.db.increment_followup(c["id"])
+                self.db.record_send(
+                    c["id"], self.typed_accounts[0].email, "success",
+                    latency_ms=latency_ms, correlation_id=corr_id,
+                )
+                self.stats["sent"] += 1
+                sent += 1
+                AppLogger.success(f"Follow-up sent to {c['last_name']} ({c['email']})")
+                import random as _r
+                d_range = self.limits.get("random_delay_range_seconds", [5, 15])
+                time.sleep(_r.uniform(d_range[0], d_range[1]))
+            else:
+                AppLogger.error(f"Follow-up failed for {c['email']}: {err_class.value}: {err_msg}")
+        self.print_stats()
+
+    def mark_replied(self, email: str) -> None:
+        self.db.mark_replied(email)
+        AppLogger.success(f"Marked {email} as replied — no further follow-ups.")
+
+    def _build_greeting(self, target: Dict[str, str]) -> str:
+        title = target.get("title", "").strip()
+        last_name = target["last_name"]
+        if title:
+            return f"{title} {last_name}"
+        return last_name
+
     def dry_run_single(self, records: List[Dict[str, str]], idx: int) -> None:
         target = records[idx]
         context = {
             "last_name": target["last_name"],
+            "title": target.get("title", ""),
+            "greeting": self._build_greeting(target),
             "paper_title": target["paper_title"],
             "your_name": self.identity["your_name"],
             "your_paper_title": self.identity["your_paper_title"],
@@ -294,6 +382,8 @@ class OrchestrationRunner:
 
         context = {
             "last_name": "TestUser",
+            "title": "",
+            "greeting": "TestUser",
             "paper_title": "Test Paper Title",
             "your_name": self.identity["your_name"],
             "your_paper_title": self.identity["your_paper_title"],
@@ -301,6 +391,7 @@ class OrchestrationRunner:
         }
         rendered = self.templates.render_all(context)
         pdf_path = "my_paper.pdf"
+        attach_pdf = bool(self.limits.get("attach_pdf", False)) and os.path.exists(pdf_path)
 
         acct_idx = 0
         if self.typed_accounts:
@@ -309,13 +400,13 @@ class OrchestrationRunner:
         context["recipient"] = target_outbox
         self.plugins.run_before_send(context)
 
-        success, err_class, latency_ms, err_msg = self.smtp_engine.send_atomic(
+        success, err_class, latency_ms, err_msg, _phases = self.smtp_engine.send_atomic(
             account_idx=acct_idx,
             recipient_email=target_outbox,
             subject=f"[TEST] {rendered['subject']}",
             text_content=rendered['text_body'],
             html_content=rendered['html_body'],
-            attachment_path=pdf_path if os.path.exists(pdf_path) else None,
+            attachment_path=pdf_path if attach_pdf else None,
         )
 
         result = {"success": success, "error": err_class.value, "latency_ms": latency_ms}
@@ -348,6 +439,8 @@ class OrchestrationRunner:
 
         context = {
             "last_name": target["last_name"],
+            "title": target.get("title", ""),
+            "greeting": self._build_greeting(target),
             "paper_title": target["paper_title"],
             "your_name": self.identity["your_name"],
             "your_paper_title": self.identity["your_paper_title"],
@@ -359,13 +452,17 @@ class OrchestrationRunner:
         self.plugins.run_before_send(context)
         rendered = self.templates.render_all(context)
         pdf_path = "my_paper.pdf"
+        attach_pdf = bool(self.limits.get("attach_pdf", False)) and os.path.exists(pdf_path)
 
         # Render validation
         missing_vars = self.templates.validate_context(context)
         if missing_vars:
             AppLogger.warn(f"Template missing variables: {missing_vars}")
 
-        qc = run_email_quality_checks(rendered["subject"], rendered["text_body"], rendered["html_body"], pdf_path)
+        qc = run_email_quality_checks(
+            rendered["subject"], rendered["text_body"], rendered["html_body"],
+            pdf_path if attach_pdf else None,
+        )
         for w in qc["warnings"]:
             AppLogger.warn(f"Quality: {w}")
         if qc["spam_count"] > 3:
@@ -384,7 +481,7 @@ class OrchestrationRunner:
             text_content=rendered["text_body"],
             html_content=rendered["html_body"],
             recipient_id=recipient_id,
-            attachment_path=pdf_path if os.path.exists(pdf_path) else None,
+            attachment_path=pdf_path if attach_pdf else None,
             correlation_id=correlation_id,
         )
 
@@ -510,6 +607,8 @@ class OrchestrationRunner:
         for i, rec in enumerate(records):
             ctx = {
                 "last_name": rec["last_name"],
+                "title": rec.get("title", ""),
+                "greeting": self._build_greeting(rec),
                 "paper_title": rec["paper_title"],
                 "your_name": self.identity["your_name"],
                 "your_paper_title": self.identity["your_paper_title"],
@@ -517,53 +616,208 @@ class OrchestrationRunner:
             }
             rendered = self.templates.render_all(ctx)
             status = "✓ NEXT" if i == idx else ("✓ DONE" if i < idx else "—")
+            state = "next" if i == idx else ("done" if i < idx else "pending")
+            initial = (rec['last_name'][0].upper() if rec['last_name'] else '?')
             html_parts.append(f"""\
-        <div class="email-card {'next' if i == idx else 'done' if i < idx else ''}">
-          <div class="status-badge">{status}</div>
-          <h3>{rec['last_name']}</h3>
-          <p class="meta">To: {rec['email']} &mdash; Paper: {rec['paper_title']}</p>
-          <p class="meta"><strong>Subject:</strong> {rendered['subject']}</p>
-          <div class="body-preview">{rendered['text_body']}</div>
-        </div>""")
+        <article class="email-card {state}" data-state="{state}" data-name="{rec['last_name'].lower()}" data-email="{rec['email'].lower()}">
+          <header class="card-head">
+            <span class="status-badge {state}">{status}</span>
+            <h3>{rec['last_name']}</h3>
+            <span class="avatar">{initial}.</span>
+            <button class="copy-btn" data-idx="{i}" title="Copy email body">⧉ Copy</button>
+          </header>
+          <p class="meta"><span class="lbl">To</span> <a class="mailto" href="mailto:{rec['email']}">{rec['email']}</a> <span class="lbl">Paper</span> {rec['paper_title']}</p>
+          <p class="meta"><span class="lbl">Subject</span> {rendered['subject']}</p>
+          <div class="body-preview" id="body-{i}">{rendered['text_body']}</div>
+        </article>""")
 
         preview_html = f"""\
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>arXiv Dispatch — Preview</title>
 <style>
+  :root {{
+    --bg:#171310; --bg2:#211b16; --card:#1d1813; --card-border:#3a3127;
+    --text:#e8ddca; --text-dim:#b3a48c; --text-faint:#8a7a62;
+    --rule:#3a3127; --ink:#e8ddca;
+    --gold:#d9a441; --green:#7fb069; --red:#c96f4a; --blue:#7d9bb3;
+    --paper:#f5efe2;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }}
+  html.light {{
+    --bg:#e9e2d2; --bg2:#f2ecdd; --card:#faf5e9; --card-border:#d6ccb4;
+    --text:#2c261c; --text-dim:#5c513d; --text-faint:#8b7d63;
+    --rule:#d6ccb4; --ink:#2c261c;
+    --gold:#9a6a1f; --green:#4d7a35; --red:#a04f2d; --blue:#3d647c;
+    --paper:#fffdf6;
+  }}
   * {{ margin:0; padding:0; box-sizing:border-box; }}
-  body {{ font:14px/1.6 system-ui,sans-serif; background:#f5f5f5; color:#222; padding:20px; }}
-  h1 {{ font-size:22px; margin-bottom:4px; }}
-  .sub {{ color:#666; margin-bottom:20px; }}
-  .email-card {{ background:#fff; border-radius:8px; padding:16px 20px; margin-bottom:12px;
-                 border-left:4px solid #999; box-shadow:0 1px 3px rgba(0,0,0,.08); }}
-  .email-card.next {{ border-left-color:#22c55e; }}
-  .email-card.done {{ border-left-color:#94a3b8; opacity:.7; }}
-  .status-badge {{ display:inline-block; padding:2px 10px; border-radius:10px;
-                   font-size:11px; font-weight:700; background:#e2e8f0; color:#475569;
-                   margin-bottom:8px; }}
-  .email-card.next .status-badge {{ background:#22c55e; color:#fff; }}
-  .meta {{ color:#555; font-size:13px; margin-bottom:6px; }}
-  .body-preview {{ background:#f8fafc; border-radius:6px; padding:12px; margin-top:8px;
-                   white-space:pre-wrap; font-size:13px; color:#333; max-height:300px; overflow-y:auto; }}
-  .summary {{ background:#fff; border-radius:8px; padding:16px 20px; margin-bottom:20px;
-              box-shadow:0 1px 3px rgba(0,0,0,.08); }}
-  .summary span {{ margin-right:20px; font-size:13px; }}
-  .summary strong {{ font-size:18px; }}
+  body {{ font:15px/1.7 var(--serif); background:var(--bg); color:var(--text);
+         padding:36px clamp(16px,5vw,72px); transition:background .3s,color .3s; }}
+  .masthead {{ display:flex; align-items:flex-end; justify-content:space-between;
+               gap:16px; flex-wrap:wrap; padding-bottom:16px; margin-bottom:22px;
+               border-bottom:2px solid var(--rule); }}
+  .masthead h1 {{ font-size:clamp(19px,2.6vw,24px); font-weight:500; letter-spacing:.02em;
+                  text-transform:uppercase; font-family:var(--mono); }}
+  .masthead h1 .mark {{ color:var(--gold); }}
+  .theme-toggle {{ cursor:pointer; border:1px solid var(--card-border); background:transparent;
+                  color:var(--text-dim); border-radius:2px; padding:6px 14px;
+                  font:500 11px var(--mono); letter-spacing:.08em; text-transform:uppercase;
+                  transition:color .2s,border-color .2s; }}
+  .theme-toggle:hover {{ color:var(--gold); border-color:var(--gold); }}
+  .sub {{ color:var(--text-faint); font-size:12px; font-family:var(--mono);
+          letter-spacing:.04em; margin-bottom:22px; }}
+  .summary {{ display:flex; background:var(--card); border:1px solid var(--card-border);
+              padding:0; margin-bottom:26px; flex-wrap:wrap; }}
+  .summary span {{ padding:12px 22px; border-left:1px solid var(--card-border);
+                   font-size:10.5px; color:var(--text-faint); font-family:var(--mono);
+                   letter-spacing:.08em; text-transform:uppercase; }}
+  .summary span:first-child {{ border-left:none; }}
+  .summary strong {{ display:block; font:600 18px var(--serif); color:var(--ink);
+                     letter-spacing:0; text-transform:none; margin-top:2px; }}
+  .summary span.next strong {{ color:var(--gold); }}
+  .email-card {{ background:var(--card); border:1px solid var(--card-border);
+                 padding:24px 28px; margin-bottom:18px; position:relative; }}
+  .email-card::before {{ content:""; position:absolute; top:-1px; left:0; right:0; height:2px; }}
+  .email-card.next::before {{ background:linear-gradient(90deg,var(--gold),transparent 70%); }}
+  .email-card.done::before {{ background:var(--card-border); }}
+  .email-card.done {{ opacity:.6; }}
+  .card-head {{ display:flex; align-items:baseline; gap:12px; margin-bottom:12px; }}
+  .avatar {{ font:600 13px var(--mono); color:var(--gold); letter-spacing:.04em; }}
+  .card-title {{ min-width:0; }}
+  h3 {{ font-size:18px; font-weight:600; letter-spacing:.01em; }}
+  .status-badge {{ display:inline-block; margin-right:8px; font:600 9.5px var(--mono);
+                   letter-spacing:.14em; text-transform:uppercase; }}
+  .status-badge.pending {{ color:var(--text-faint); }}
+  .status-badge.next {{ color:var(--gold); }}
+  .status-badge.done {{ color:var(--green); }}
+  .meta {{ color:var(--text-dim); font-size:12.5px; font-family:var(--mono);
+           margin-bottom:6px; overflow-wrap:anywhere; }}
+  .meta .lbl {{ color:var(--text-faint); font-size:9.5px; letter-spacing:.1em; margin-right:8px; }}
+  .mailto {{ color:var(--blue); text-decoration:none; }}
+  .mailto:hover {{ text-decoration:underline; }}
+  .body-preview {{ margin-top:14px; padding:18px 20px; background:var(--bg2);
+                   border-left:3px solid var(--card-border); white-space:pre-wrap;
+                   font:13.5px/1.8 var(--serif); color:var(--text-dim);
+                   max-height:360px; overflow-y:auto; }}
+  .body-preview::-webkit-scrollbar {{ width:8px; }}
+  .body-preview::-webkit-scrollbar-thumb {{ background:var(--card-border); }}
+  .foot {{ margin-top:28px; padding-top:14px; border-top:1px solid var(--rule);
+           color:var(--text-faint); font:10.5px var(--mono); letter-spacing:.06em;
+           display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }}
+  .toolbar {{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px; }}
+  .fbtn {{ cursor:pointer; border:1px solid var(--card-border); background:var(--card);
+           color:var(--text-dim); border-radius:2px; padding:6px 14px;
+           font:500 10.5px var(--mono); letter-spacing:.08em; text-transform:uppercase;
+           transition:color .2s,border-color .2s; }}
+  .fbtn:hover {{ color:var(--gold); border-color:var(--gold); }}
+  .fbtn.active {{ color:var(--gold); border-color:var(--gold); }}
+  .search {{ flex:1; min-width:200px; background:var(--card); border:1px solid var(--card-border);
+             color:var(--text); border-radius:2px; padding:7px 12px;
+             font:500 12px var(--mono); outline:none; }}
+  .search::placeholder {{ color:var(--text-faint); }}
+  .search:focus {{ border-color:var(--gold); }}
+  .copy-btn {{ margin-left:auto; cursor:pointer; border:1px solid var(--card-border);
+               background:transparent; color:var(--text-faint); border-radius:2px;
+               padding:3px 10px; font:500 9.5px var(--mono); letter-spacing:.08em;
+               text-transform:uppercase; transition:color .2s,border-color .2s; }}
+  .copy-btn:hover {{ color:var(--gold); border-color:var(--gold); }}
+  .copy-btn.copied {{ color:var(--green); border-color:var(--green); }}
+  .empty {{ display:none; padding:30px; text-align:center; color:var(--text-faint);
+            font:12px var(--mono); letter-spacing:.06em; border:1px dashed var(--card-border); }}
 </style>
 </head>
 <body>
-<h1>📬 arXiv Dispatch — Preview</h1>
-<p class="sub">{len(records)} endorser{'' if len(records) == 1 else 's'} loaded</p>
+<header class="masthead">
+  <h1><span class="mark">✦</span> arXiv Dispatch <span class="mark">/</span> Preview</h1>
+  <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()">🌙 Dark</button>
+</header>
+<p class="sub">OUTBOX — {len(records)} endorser{'' if len(records) == 1 else 's'} loaded · {idx} dispatched</p>
+<div class="toolbar">
+  <button class="fbtn active" data-filter="all" onclick="setFilter(this)">All</button>
+  <button class="fbtn" data-filter="pending" onclick="setFilter(this)">Pending</button>
+  <button class="fbtn" data-filter="next" onclick="setFilter(this)">Next</button>
+  <button class="fbtn" data-filter="done" onclick="setFilter(this)">Done</button>
+  <input class="search" id="search" type="search" placeholder="Search name, email, paper…" oninput="applyFilter()">
+</div>
 <div class="summary">
-  <span>Total: <strong>{len(records)}</strong></span>
-  <span>Pending: <strong>{len(records) - idx}</strong></span>
-  <span>Done: <strong>{idx}</strong></span>
-  <span>Next: <strong>#{idx + 1}</strong></span>
+  <span>Total <strong>{len(records)}</strong></span>
+  <span>Pending <strong>{len(records) - idx}</strong></span>
+  <span>Done <strong>{idx}</strong></span>
+  <span class="next">Next <strong>#{idx + 1}</strong></span>
 </div>
 {''.join(html_parts)}
+<p class="empty" id="empty">No matches.</p>
+<footer class="foot">
+  <span>Generated {self._now_stamp()}</span>
+  <span>arxiv-automation v5.2</span>
+</footer>
+<script>
+  function toggleTheme() {{
+    var html = document.documentElement;
+    var dark = html.classList.toggle('dark');
+    html.classList.toggle('light', !dark);
+    document.getElementById('themeBtn').textContent = dark ? '🌙 Dark' : '☀️ Light';
+    try {{ localStorage.setItem('theme', dark ? 'dark' : 'light'); }} catch(e) {{}}
+  }}
+  try {{
+    var saved = localStorage.getItem('theme');
+    if (saved === 'light') {{ toggleTheme(); }}
+  }} catch(e) {{}}
+  var currentFilter = 'all';
+  function setFilter(btn) {{
+    currentFilter = btn.dataset.filter;
+    document.querySelectorAll('.fbtn').forEach(function(b) {{ b.classList.toggle('active', b === btn); }});
+    applyFilter();
+  }}
+  function applyFilter() {{
+    var q = document.getElementById('search').value.toLowerCase();
+    var cards = document.querySelectorAll('.email-card');
+    var visible = 0;
+    cards.forEach(function(card) {{
+      var show = currentFilter === 'all' || card.dataset.state === currentFilter;
+      if (show && q) {{
+        show = (card.dataset.name + ' ' + card.dataset.email + ' ' + card.textContent.toLowerCase()).indexOf(q) !== -1;
+      }}
+      card.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }});
+    document.getElementById('empty').style.display = visible ? 'none' : 'block';
+  }}
+  function copyBody(idx, btn) {{
+    var el = document.getElementById('body-' + idx);
+    var text = el.innerText || el.textContent;
+    function done() {{
+      btn.classList.add('copied');
+      btn.textContent = '✓ Copied';
+      setTimeout(function() {{
+        btn.classList.remove('copied');
+        btn.textContent = '⧉ Copy';
+      }}, 1500);
+    }}
+    if (navigator.clipboard && navigator.clipboard.writeText) {{
+      navigator.clipboard.writeText(text).then(done, function() {{ fallbackCopy(text, done); }});
+    }} else {{ fallbackCopy(text, done); }}
+  }}
+  function fallbackCopy(text, done) {{
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {{ document.execCommand('copy'); }} catch(e) {{}}
+    document.body.removeChild(ta);
+    done();
+  }}
+  document.querySelectorAll('.copy-btn').forEach(function(b) {{
+    b.addEventListener('click', function() {{ copyBody(b.dataset.idx, b); }});
+  }});
+</script>
 </body>
 </html>"""
         preview_path = "preview.html"
@@ -577,6 +831,10 @@ class OrchestrationRunner:
             except Exception:
                 pass
 
+    def _now_stamp(self) -> str:
+        from datetime import datetime
+        return datetime.now().strftime("%Y-%m-%d %H:%M")
+
     def archive_sent_email(self, record: Dict[str, str]) -> None:
         import email.policy
         from email.message import EmailMessage
@@ -584,6 +842,8 @@ class OrchestrationRunner:
 
         context = {
             "last_name": record["last_name"],
+            "title": record.get("title", ""),
+            "greeting": self._build_greeting(record),
             "paper_title": record["paper_title"],
             "your_name": self.identity["your_name"],
             "your_paper_title": self.identity["your_paper_title"],

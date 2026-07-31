@@ -6,7 +6,7 @@ from core.database import Database
 def test_init():
     db = Database(":memory:")
     db.initialize()
-    assert db.get_meta("schema_version", "0") == "4"
+    assert db.get_meta("schema_version", "0") == "5"
 
 
 def test_recipient_crud():
@@ -77,11 +77,12 @@ def test_schema_migration():
     db = Database(":memory:")
     db.initialize()
     ver = db.get_meta("schema_version", "0")
-    assert ver == "4"
+    assert ver == "5"
     history = db.get_meta("migration_history", "")
     assert "1" in history
     assert "2" in history
     assert "3" in history
+    assert "4" in history
 
 
 def test_send_record(tmp_path):
@@ -126,6 +127,43 @@ def test_vacuum():
     db = Database(":memory:")
     db.initialize()
     db.vacuum()
+
+
+def test_followup_candidates():
+    db = Database(":memory:")
+    db.initialize()
+    rid = db.upsert_recipient("Smith", "s@t.com", "Paper", "hash1")
+    db.record_send(rid, "a@b.com", "success")
+    db.record_send(rid, "a@b.com", "success")
+    candidates = db.get_followup_candidates(days=0)
+    assert len(candidates) == 1
+    assert candidates[0]["send_count"] == 2
+    db.mark_replied("s@t.com")
+    assert db.get_followup_candidates(days=0) == []
+    db.increment_followup(rid)
+    assert db.get_followup_candidates(days=0) == []
+
+
+def test_followup_max():
+    db = Database(":memory:")
+    db.initialize()
+    rid = db.upsert_recipient("Smith", "s@t.com", "Paper", "hash1")
+    db.record_send(rid, "a@b.com", "success")
+    db.increment_followup(rid)
+    db.increment_followup(rid)
+    assert db.get_followup_candidates(days=0, max_followups=2) == []
+
+
+def test_followup_summary():
+    db = Database(":memory:")
+    db.initialize()
+    rid = db.upsert_recipient("Smith", "s@t.com", "Paper", "hash1")
+    db.record_send(rid, "a@b.com", "success")
+    summary = db.get_followup_summary()
+    assert summary["candidates"] == 1
+    db.mark_replied("s@t.com")
+    summary = db.get_followup_summary()
+    assert summary["replied"] == 1
 
 
 def test_close():

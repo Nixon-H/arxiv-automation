@@ -37,3 +37,7 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Sensitive / local-only
+endorsement_data.md
+site/

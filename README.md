@@ -25,7 +25,7 @@ Automated, production-grade email dispatch system for requesting arXiv endorseme
 - **Correlation IDs** — `uuid4().hex[:12]` generated per send, threaded through the full pipeline (SMTP → DB → structured logs) so one send is traceable end-to-end
 
 ### Data & Parsing
-- Multi-format input: **TXT / CSV / JSON / YAML / XLSX** with magic-byte + extension auto-detection (TXT supports whitespace- or `|`-separated)
+- Multi-format input: **TXT / CSV / JSON / YAML / XLSX** with magic-byte + extension auto-detection (TXT supports block format or `Name | email | paper` pipe-separated lines)
 - Unicode normalization (NFKC) on all name/paper fields
 - **In-file duplicate detection** with per-category stats:
   - Duplicate email
@@ -46,7 +46,7 @@ Automated, production-grade email dispatch system for requesting arXiv endorseme
 - **HTML sanity checks** — tag balance verification for 12 HTML tags
 - **Render validation** — `get_required_vars()` + `validate_context()` ensures all `{{ var }}` placeholders resolve
 - **Email quality scoring** — 0–100 composite score with A–F grade: missing subject/body, 30+ spam trigger words, broken links, attachment validation, lint + HTML issues — shown per email in dry-run and live sends
-- Anti-spam headers: `List-Unsubscribe`, `X-Mailer`, `User-Agent`, `Reply-To`, custom headers
+- Anti-spam hygiene: `X-Mailer`, `User-Agent`, `Reply-To`, custom headers (no bulk-mail `List-Unsubscribe` — deliberate, keeps personal outreach out of bulk classification)
 - **Archive sent emails** — every successful send saved as `sent/YYYY-MM-DD_Name.eml` (full MIME structure)
 
 ### Safety & Reliability
@@ -229,7 +229,7 @@ CSV / JSON / YAML / XLSX also supported — must contain `last_name`, `email`, `
 ```
 Dear Dr./Mr./Ms. {{ last_name }},
 
-I hope this email finds you well.
+I trust this email finds you in good spirits and good health.
 
 My name is {{ your_name }}, and I am an independent researcher. I have recently completed an academic paper titled "{{ your_paper_title }}" and would be honored to have your endorsement for submission to arXiv's {{ arxiv_category }} category.
 

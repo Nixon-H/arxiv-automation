@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: |
+          pip install build cyclonedx-bom
+
+      - name: Run tests
+        run: |
+          pip install pytest
+          python -m pytest tests/ -q
+
+      - name: Build distribution
+        run: python -m build
+
+      - name: Generate SBOM
+        run: |
+          cyclonedx-py --pyproject pyproject.toml --output-format json --output sbom.json
+
+      - name: Get version from tag
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: arXiv Automation ${{ steps.version.outputs.tag }}
+          body: |
+            ## arXiv Automation ${{ steps.version.outputs.tag }}
+
+            Automated arXiv endorsement outreach engine.
+
+            ### Artifacts
+            - Python wheel + sdist (`dist/`)
+            - CycloneDX SBOM (`sbom.json`)
+
+            ### Install
+            ```bash
+            pip install arxiv-automation
+            ```
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            sbom.json
+          generate_release_notes: true

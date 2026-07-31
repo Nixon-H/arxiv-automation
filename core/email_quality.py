@@ -16,6 +16,7 @@ TEMPLATE_LINT_RULES = [
 _GREETING_PATTERNS = [
     r"\bdear\b", r"\bhello\b", r"\bhi\b", r"\bgreetings\b",
     r"\bto\b.*\bwhom", r"\bdear\s+(dr|prof|mr|ms|mrs)\b",
+    r"\brespected\b",
 ]
 
 
@@ -97,7 +98,11 @@ def lint_template(text: str, template_name: str = "template") -> List[str]:
         if matches:
             issues.append(f"{desc} ({len(matches)} occurrence(s))")
 
-    if not text.strip().endswith((".", "!", "?", "\n")):
+    lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
+    for line in reversed(lines):
+        if line.endswith((".", "!", "?")):
+            break
+    else:
         issues.append("Text does not end with sentence-ending punctuation")
 
     return issues
@@ -184,7 +189,6 @@ def compute_email_score(
 
 def check_attachment_valid(pdf_path: str) -> bool:
     if not os.path.exists(pdf_path):
-        AppLogger.warn(f"Attachment not found: {pdf_path}")
         return False
     with open(pdf_path, "rb") as f:
         header = f.read(5)
@@ -215,7 +219,7 @@ def run_email_quality_checks(
     if broken_links:
         warnings.extend(broken_links)
 
-    if pdf_path and not check_attachment_valid(pdf_path):
+    if pdf_path and os.path.exists(pdf_path) and not check_attachment_valid(pdf_path):
         warnings.append(f"Attachment invalid: {pdf_path}")
 
     lint_issues = lint_template(text_body, "text template")
