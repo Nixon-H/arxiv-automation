@@ -160,7 +160,10 @@ class OrchestrationRunner:
                 break
 
         if not input_file:
-            AppLogger.error("No endorser data file found.")
+            self._create_sample_endorsers()
+            AppLogger.info(
+                "Created sample endorsers.txt — edit it with real recipients (Name is qualified to endorse. / Paper title / email) and run again."
+            )
             return
 
         records: list[dict[str, str]]
@@ -264,6 +267,21 @@ class OrchestrationRunner:
         self.print_stats()
         self.notifier.send_completion(self.stats)
         self.lock.release()
+
+    def _create_sample_endorsers(self) -> None:
+        sample = (
+            "Elena Vasquez is qualified to endorse.\n"
+            "Deep Learning for Safety\n"
+            "elena.vasquez@example.com\n\n"
+            "Marcus Chen is qualified to endorse.\n"
+            "Foundations of Machine Learning\n"
+            "marcus.chen@example.com\n"
+        )
+        try:
+            with open("endorsers.txt", "w", encoding="utf-8") as f:
+                f.write(sample)
+        except OSError as e:
+            AppLogger.error(f"Could not create endorsers.txt: {e}")
 
     def run_followups(self, days: int) -> None:
         candidates = self.db.get_followup_candidates(days, max_followups=2)
