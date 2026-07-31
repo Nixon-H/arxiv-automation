@@ -65,6 +65,7 @@ plugins:
           options:
             show_source: true
             show_root_heading: true
+            show_if_no_docstring: true
             docstring_style: google
 
 extra_css:
