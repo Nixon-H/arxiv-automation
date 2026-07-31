@@ -1,0 +1,42 @@
+{
+    "sender_identity": {
+        "your_name": "Nixon-H",
+        "your_paper_title": "My Paper Title",
+        "arxiv_category": "cs.AI"
+    },
+    "safety_and_limits": {
+        "cooldown_hours": 24.0,
+        "smtp_timeout_seconds": 30.0,
+        "random_delay_range_seconds": [
+            5,
+            15
+        ],
+        "max_retries": 3,
+        "initial_backoff_seconds": 2.0
+    },
+    "accounts": [
+        {
+            "provider": "gmail",
+            "email": "your.username1@gmail.com",
+            "password": "your-gmail-app-password-here",
+            "server": "smtp.gmail.com",
+            "port": 587,
+            "max_per_hour": 20,
+            "max_per_day": 200
+        },
+        {
+            "provider": "outlook",
+            "email": "your.username2@outlook.com",
+            "password": "your-outlook-password-here",
+            "server": "smtp.office365.com",
+            "port": 587,
+            "max_per_hour": 15,
+            "max_per_day": 150
+        }
+    ],
+    "notifications": {
+        "discord": "",
+        "slack": ""
+    },
+    "config_version": 2
+}

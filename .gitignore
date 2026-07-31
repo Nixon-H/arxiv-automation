@@ -1,0 +1,39 @@
+# Environment variables
+.env
+
+# State and progress
+data/
+*.bak
+
+# Logs
+logs/
+
+# Reports
+exports/
+
+# Generated artifacts
+sent/
+scheduler/
+preview.html
+diagnostics.zip
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type/lint caches
+.mypy_cache/
+.ruff_cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db

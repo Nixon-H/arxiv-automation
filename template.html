@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333333; }
+        .container { padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 5px; }
+        .footer { margin-top: 30px; border-top: 1px solid #eeeeee; padding-top: 10px; font-size: 0.9em; color: #777777; }
+        .highlight { font-weight: bold; color: #1a5276; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <p>Dear Dr./Mr./Ms. <span class="highlight">{{ last_name }}</span>,</p>
+
+        <p>I hope this email finds you well.</p>
+
+        <p>My name is <span class="highlight">{{ your_name }}</span>, and I am an independent researcher. I have recently completed an academic paper titled <span class="highlight">"{{ your_paper_title }}"</span>, which I am preparing to submit to arXiv under the <span class="highlight">{{ arxiv_category }}</span> category.</p>
+
+        <p>Because I am submitting as an independent author without an institutional affiliation, arXiv requires an endorsement to verify my contribution. I discovered your profile through your work on <em>"{{ paper_title }}"</em> and noticed you are a qualified endorser for this topic.</p>
+
+        <p>I have attached the full manuscript draft PDF to this email for your review. If you find the academic rigor of our work suitable for arXiv, would you be open to endorsing my submission?</p>
+
+        <p>Thank you very much for your time, support, and consideration.</p>
+
+        <div class="footer">
+            <p>Best regards,</p>
+            <p><strong>{{ your_name }}</strong><br>
+            Independent Researcher</p>
+        </div>
+    </div>
+</body>
+</html>

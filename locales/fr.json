@@ -1,0 +1,12 @@
+{
+    "email_subject": "Demande d'approbation arXiv : {paper_title}",
+    "email_greeting": "Cher/Chère Dr./M./Mme {last_name},",
+    "email_intro": "J'espère que ce message vous trouve en bonne santé.",
+    "email_body": "Je m'appelle {your_name} et je suis un chercheur indépendant. J'ai récemment terminé un article académique intitulé \"{your_paper_title}\", que je prépare à soumettre à arXiv dans la catégorie {arxiv_category}.",
+    "email_endorsement_request": "En tant qu'auteur indépendant sans affiliation institutionnelle, arXiv exige une approbation pour vérifier ma contribution. J'ai découvert votre profil via votre travail sur \"{paper_title}\" et j'ai noté que vous êtes un approbateur qualifié pour ce sujet.",
+    "email_attachment_note": "J'ai joint le manuscrit complet à cet email pour votre examen. Si vous trouvez la rigueur académique de notre travail adaptée à arXiv, accepteriez-vous d'approuver ma soumission ?",
+    "email_thanks": "Merci beaucoup pour votre temps, votre soutien et votre considération.",
+    "email_closing": "Cordialement,",
+    "email_signature_name": "{your_name}",
+    "email_signature_title": "Chercheur Indépendant"
+}

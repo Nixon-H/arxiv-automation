@@ -1,0 +1,39 @@
+Dr.  Elena Vasquezand collaborators are qualified to endorse in deep learning
+Deep Learning for Safety
+elena.vasquez@example.com
+
+Prof.  Marcus Chenis qualified to endorse in machine learning
+Foundations of Machine Learning
+marcus.chen@example.com
+
+Dr.  Sofia Marinois qualified to endorse in computer vision
+Visual Representation Learning
+sofia.marino@example.com
+
+Prof.  Daniel Okaforis qualified to endorse in neural networks
+Neural Network Optimization
+daniel.okafor@example.com
+
+Dr.  Amelia Novakis qualified to endorse in computer vision
+Image Understanding with Deep Architectures
+amelia.novak@example.com
+
+Prof.  Hiroshi Tanakais qualified to endorse in generative models
+Generative Modeling Techniques
+hiroshi.tanaka@example.com
+
+Dr.  Isabelle Fontaineis qualified to endorse in reinforcement learning
+Sequential Decision Making
+isabelle.fontaine@example.com
+
+Prof.  Rajesh Iyeris qualified to endorse in recurrent neural networks
+Long-Term Sequence Modeling
+rajesh.iyer@example.com
+
+Dr.  Lena Kowalskiis qualified to endorse in differential privacy
+Privacy-Preserving Machine Learning
+lena.kowalski@example.com
+
+Prof.  Samuel Adeyemiis qualified to endorse in reinforcement learning
+Policy Optimization Methods
+samuel.adeyemi@example.com

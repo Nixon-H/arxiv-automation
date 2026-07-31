@@ -1,0 +1,16 @@
+Dear Dr./Mr./Ms. {{ last_name }},
+
+I hope this email finds you well.
+
+My name is {{ your_name }}, and I am an independent researcher. I have recently completed an academic paper titled "{{ your_paper_title }}", which I am preparing to submit to arXiv under the {{ arxiv_category }} category.
+
+Because I am submitting as an independent author without an institutional affiliation, arXiv requires an endorsement to verify my contribution. I discovered your profile through your work on "{{ paper_title }}" and noticed you are a qualified endorser for this topic.
+
+I have attached the full manuscript draft PDF to this email for your review. If you find the academic rigor of our work suitable for arXiv, would you be open to endorsing my submission?
+
+Thank you very much for your time, support, and consideration.
+
+Best regards,
+
+{{ your_name }}
+Independent Researcher

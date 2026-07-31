@@ -1,0 +1,12 @@
+{
+    "email_subject": "arXiv 认可请求：{paper_title}",
+    "email_greeting": "尊敬的 {last_name} 博士/先生/女士，",
+    "email_intro": "希望这封邮件能让您一切顺利。",
+    "email_body": "我叫 {your_name}，是一名独立研究员。我最近完成了一篇学术论文，题为\"{your_paper_title}\"，准备提交到 arXiv 的 {arxiv_category} 类别。",
+    "email_endorsement_request": "由于我是独立作者，没有机构 affiliation，arXiv 需要认可来验证我的贡献。我通过您关于\"{paper_title}\"的工作发现了您的资料，并注意到您是该主题的合格认可人。",
+    "email_attachment_note": "我已将完整的稿件PDF附在这封邮件中供您审阅。如果您认为我们的工作符合arXiv的学术标准，您是否愿意为我的提交提供认可？",
+    "email_thanks": "非常感谢您的时间、支持和考虑。",
+    "email_closing": "此致敬礼，",
+    "email_signature_name": "{your_name}",
+    "email_signature_title": "独立研究员"
+}

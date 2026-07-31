@@ -1,0 +1,18 @@
+{
+    "email_subject": "arXiv Endorsement Request: {paper_title}",
+    "email_greeting": "Dear Dr./Mr./Ms. {last_name},",
+    "email_intro": "I hope this email finds you well.",
+    "email_body": "My name is {your_name}, and I am an independent researcher. I have recently completed an academic paper titled \"{your_paper_title}\", which I am preparing to submit to arXiv under the {arxiv_category} category.",
+    "email_endorsement_request": "Because I am submitting as an independent author without an institutional affiliation, arXiv requires an endorsement to verify my contribution. I discovered your profile through your work on \"{paper_title}\" and noticed you are a qualified endorser for this topic.",
+    "email_attachment_note": "I have attached the full manuscript draft PDF to this email for your review. If you find the academic rigor of our work suitable for arXiv, would you be open to endorsing my submission?",
+    "email_thanks": "Thank you very much for your time, support, and consideration.",
+    "email_closing": "Best regards,",
+    "email_signature_name": "{your_name}",
+    "email_signature_title": "Independent Researcher",
+    "cli_dry_run": "DRY RUN: Record #{index}",
+    "cli_sending_to": "Sending to {email}",
+    "cli_sent": "Sent via {account} to {recipient} ({latency}s)",
+    "cli_failed": "Failed via {account}: {error} ({latency}s)",
+    "cli_cooldown": "Cooldown active — {hours}h remaining",
+    "cli_duplicate": "Duplicate skipped: {email}"
+}
