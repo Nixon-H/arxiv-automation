@@ -214,8 +214,8 @@ python run.py --retry-failed     # Retry previously failed sends
 `endorsers.txt` (whitespace or `|` separated):
 
 ```
-Dr.  Elena Vasquez|  elena.vasquez@example.com| Deep Learning for Safety
-Prof.  Daniel Okafor|  daniel.okafor@example.com| Deep Learning
+Dr. Elena Vasquez | elena.vasquez@example.com | Deep Learning for Safety
+Prof. Marcus Chen | marcus.chen@example.com | Deep Learning Theory
 ```
 
 CSV / JSON / YAML / XLSX also supported — must contain `last_name`, `email`, `paper_title` fields.
