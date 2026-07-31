@@ -97,7 +97,7 @@ Automated, production-grade email dispatch system for requesting arXiv endorseme
 ## Installation
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Nixon-H/arxiv-automation.git
 cd arxiv_automation
 pip install -e .
 ```
@@ -329,8 +329,8 @@ MIT — see [LICENSE](LICENSE).
 
 ## Roadmap
 
-- Real-provider validation of deliverability (Gmail/Outlook bounce behavior)
-- OAuth2 SMTP (XOAUTH2) for Gmail without app passwords
-- Plugin API versioning + deprecation framework
-- OpenTelemetry tracing with per-email event timelines
-- SBOM + reproducible builds in CI
+- [ ] Real-provider validation of deliverability (Gmail/Outlook bounce behavior)
+- [ ] OAuth2 SMTP (XOAUTH2) for Gmail without app passwords
+- [ ] Plugin API versioning + deprecation framework
+- [ ] OpenTelemetry tracing with per-email event timelines
+- [ ] SBOM + reproducible builds in CI
