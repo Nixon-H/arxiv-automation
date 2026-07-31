@@ -1,0 +1,218 @@
+:root {
+  --radius: 3px;
+  --paper-light: #faf9f7;
+  --paper-dark: #151412;
+  --ink: #191917;
+  --muted-light: #6b6964;
+  --muted-dark: #9c9a92;
+  --hairline-light: rgba(25, 25, 23, 0.14);
+  --hairline-dark: rgba(240, 240, 236, 0.14);
+}
+
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: var(--paper-light);
+  --md-typeset-a-color: var(--ink);
+  --md-code-bg-color: #f1f0ec;
+  --surface: #ffffff;
+  --muted: var(--muted-light);
+  --hairline: var(--hairline-light);
+  --header-bg: #ffffff;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: var(--paper-dark);
+  --md-typeset-a-color: #f2f2ee;
+  --md-code-bg-color: #1e1d1a;
+  --surface: #1c1b18;
+  --muted: var(--muted-dark);
+  --hairline: var(--hairline-dark);
+  --header-bg: #151412;
+}
+
+.md-header {
+  background-color: var(--header-bg) !important;
+  border-bottom: 1px solid var(--hairline);
+  box-shadow: none !important;
+}
+
+.md-header__title {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.md-tabs {
+  background-color: transparent !important;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.md-typeset h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--md-default-fg-color);
+  border-bottom: none;
+}
+
+.md-typeset h2 {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.md-typeset h1, .md-typeset h2, .md-typeset h3 {
+  scroll-margin-top: 4.5rem;
+}
+
+.md-typeset a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.md-typeset a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.md-typeset table:not([class]) {
+  border-radius: 0;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+}
+
+.md-typeset table:not([class]) th {
+  background: transparent;
+  color: var(--md-default-fg-color);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--md-default-fg-color);
+}
+
+.md-typeset table:not([class]) td,
+.md-typeset table:not([class]) th {
+  border-color: var(--hairline);
+}
+
+.md-typeset table:not([class]) tbody tr:nth-child(even) {
+  background: transparent;
+}
+
+.md-typeset code {
+  border-radius: var(--radius);
+  font-size: 0.85em;
+}
+
+.md-typeset pre > code {
+  border-radius: var(--radius);
+  border: 1px solid var(--hairline);
+}
+
+.md-typeset .admonition {
+  border-radius: var(--radius);
+  border-width: 0 0 0 3px;
+  font-size: 0.92em;
+}
+
+.md-typeset details {
+  border-radius: var(--radius);
+}
+
+.md-typeset details > summary {
+  font-weight: 600;
+}
+
+.md-footer {
+  background-color: var(--md-default-bg-color) !important;
+  border-top: 1px solid var(--hairline);
+  color: var(--muted);
+}
+
+.md-footer__link, .md-footer__link:hover, .md-footer .md-footer__inner a {
+  color: var(--muted);
+}
+
+.md-copyright {
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+
+.md-content__inner {
+  padding-bottom: 3rem;
+}
+
+.md-nav__link--active {
+  font-weight: 700;
+}
+
+.md-nav__link {
+  transition: none;
+}
+
+.hero {
+  text-align: center;
+  padding: 3.2rem 1rem 1.8rem;
+}
+
+.hero .eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--muted);
+}
+
+.hero .badges {
+  margin-top: 1rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+}
+
+.hero .badges span {
+  margin: 0 0.5rem;
+}
+
+.hero p.lead {
+  font-size: 1.1rem;
+  color: var(--muted);
+  max-width: 42rem;
+  margin: 0.8rem auto 0;
+  line-height: 1.65;
+}
+
+.feature-list {
+  list-style: none;
+  margin: 1.8rem 0 0.5rem;
+  padding: 0;
+  border-top: 2px solid var(--md-default-fg-color);
+}
+
+.feature-list li {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 1.2rem;
+  padding: 1.15rem 0.2rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.feature-list .num {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding-top: 0.25rem;
+}
+
+.feature-list h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.feature-list p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 42rem;
+}

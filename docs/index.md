@@ -1,14 +1,26 @@
+<div class="hero">
+
+<p class="eyebrow">arXiv Endorsement Outreach Engine</p>
+
 # arXiv Automation
 
-Automated arXiv endorsement outreach engine — production-grade, modular, and safe by default.
+<p class="lead">Reaches out to qualified arXiv endorsers on your behalf — personalized emails, adaptive rate limiting, SQLite tracking, and follow-ups for non-responders.</p>
 
-![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![tests](https://img.shields.io/badge/tests-103%20passing-brightgreen)
+<div class="badges"><span>Python 3.10+</span>·<span>103 tests passing</span>·<span>MIT</span>·<span>Gmail / Outlook</span></div>
 
-## What it does
+</div>
 
-Reaches out to qualified arXiv endorsers on your behalf — parsing endorser lists, rendering
-personalized emails, sending via Gmail/Outlook SMTP with adaptive rate limiting, tracking every
-send in SQLite, and following up with non-responders — all while keeping your account healthy.
+<ul class="feature-list">
+
+<li><span class="num">01</span><div><h3>Safe by default</h3><p>Dry-run previews, cooldowns, rate limits, file locking, and resumable batches — nothing goes out by accident.</p></div></li>
+
+<li><span class="num">02</span><div><h3>Deliverability-first</h3><p>SPF/DKIM/DMARC diagnostics, anti-spam scoring, and bounce classification keep your sender reputation intact.</p></div></li>
+
+<li><span class="num">03</span><div><h3>Observable</h3><p>Structured JSON logs, per-phase latency, Prometheus metrics, and HTML dashboards for every run.</p></div></li>
+
+<li><span class="num">04</span><div><h3>Extensible</h3><p>6 plugin hooks, i18n (en/fr/zh), an encrypted credential store, and follow-up tracking.</p></div></li>
+
+</ul>
 
 ## Highlights
 
