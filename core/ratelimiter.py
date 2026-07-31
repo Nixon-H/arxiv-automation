@@ -1,5 +1,4 @@
 import time
-from typing import Dict, List, Tuple, Optional
 
 from core.database import Database
 from core.logger import AppLogger
@@ -8,21 +7,21 @@ from core.logger import AppLogger
 class RateLimiter:
     def __init__(self, db: Database) -> None:
         self.db = db
-        self._providers: Dict[str, Tuple[int, int]] = {}
+        self._providers: dict[str, tuple[int, int]] = {}
 
     def register_provider(self, provider: str, max_per_hour: int, max_per_day: int) -> None:
         self._providers[provider] = (max_per_hour, max_per_day)
         self.db.init_rate_limit(provider, max_per_hour, max_per_day)
         AppLogger.debug(f"Rate limit: {provider} = {max_per_hour}/h, {max_per_day}/d")
 
-    def check(self, provider: str) -> Tuple[bool, str]:
+    def check(self, provider: str) -> tuple[bool, str]:
         ok, msg = self.db.check_rate_limit(provider)
         return ok, msg
 
     def increment(self, provider: str) -> None:
         self.db.increment_rate_limit(provider)
 
-    def get_adaptive_delay(self, provider: str, base_range: Tuple[float, float]) -> float:
+    def get_adaptive_delay(self, provider: str, base_range: tuple[float, float]) -> float:
         limits = self._providers.get(provider, (20, 200))
         per_hour_used = self._get_hourly_usage(provider)
         ratio = per_hour_used / max(limits[0], 1)
@@ -43,5 +42,5 @@ class RateLimiter:
         )
         return rl["sent_this_hour"] if rl else 0
 
-    def get_limits(self, provider: str) -> Tuple[int, int]:
+    def get_limits(self, provider: str) -> tuple[int, int]:
         return self._providers.get(provider, (20, 200))

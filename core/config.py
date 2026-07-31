@@ -1,12 +1,11 @@
-import os
 import json
-from typing import Any, Dict, List
+import os
+from typing import Any
 
-from core.exceptions import ConfigValidationError
 from core.config_typed import TypedConfig, _resolve_env_vars
-from core.secrets import SecretsResolver
+from core.exceptions import ConfigValidationError
 from core.logger import AppLogger
-
+from core.secrets import SecretsResolver
 
 CONFIG_VERSION = 2
 
@@ -16,13 +15,13 @@ class AppConfig:
         self.config_path = config_path
         self.dotenv_path = dotenv_path
         self._typed: TypedConfig
-        self._raw: Dict[str, Any] = {}
+        self._raw: dict[str, Any] = {}
         self._load_dotenv()
         self.load_and_validate()
 
     def _load_dotenv(self) -> None:
         if os.path.exists(self.dotenv_path):
-            with open(self.dotenv_path, "r", encoding="utf-8") as f:
+            with open(self.dotenv_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith("#") or "=" not in line:
@@ -37,7 +36,7 @@ class AppConfig:
         if not os.path.exists(self.config_path):
             raise ConfigValidationError(f"Config file '{self.config_path}' not found.")
 
-        with open(self.config_path, "r", encoding="utf-8") as f:
+        with open(self.config_path, encoding="utf-8") as f:
             try:
                 raw = json.load(f)
             except json.JSONDecodeError as e:
@@ -96,7 +95,7 @@ class AppConfig:
         }
 
     @property
-    def accounts(self) -> List[dict]:
+    def accounts(self) -> list[dict]:
         return [
             {
                 "provider": a.provider,

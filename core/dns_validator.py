@@ -1,10 +1,7 @@
-import re
-import socket
 import concurrent.futures
-from typing import Dict, List, Tuple, Optional
+import socket
 
 from core.logger import AppLogger
-
 
 _DISPOSABLE_DOMAINS: set = set()
 
@@ -31,7 +28,7 @@ def _load_disposable_domains() -> set:
     return _DISPOSABLE_DOMAINS
 
 
-def check_mx_record(domain: str) -> Tuple[bool, str]:
+def check_mx_record(domain: str) -> tuple[bool, str]:
     try:
         answers = socket.getaddrinfo(domain, 25, socket.AF_INET, socket.SOCK_STREAM)
         return True, f"MX resolvable ({len(answers)} record(s))"
@@ -47,15 +44,15 @@ def check_mx_record(domain: str) -> Tuple[bool, str]:
             return False, f"Cannot resolve {domain} (no dns.resolver available)"
 
 
-def check_a_record(domain: str) -> Tuple[bool, str]:
+def check_a_record(domain: str) -> tuple[bool, str]:
     try:
         socket.getaddrinfo(domain, 80, socket.AF_INET, socket.SOCK_STREAM)
-        return True, f"A record resolvable"
+        return True, "A record resolvable"
     except socket.gaierror:
         return False, f"No A record for {domain}"
 
 
-def _resolve_txt(domain: str, prefix: str = "") -> Tuple[bool, str]:
+def _resolve_txt(domain: str, prefix: str = "") -> tuple[bool, str]:
     qname = f"{prefix}.{domain}" if prefix else domain
     try:
         import dns.resolver
@@ -84,7 +81,7 @@ def _resolve_txt(domain: str, prefix: str = "") -> Tuple[bool, str]:
             return False, "No dns.resolver or dig available"
 
 
-def check_spf(domain: str) -> Tuple[bool, str]:
+def check_spf(domain: str) -> tuple[bool, str]:
     ok, txt = _resolve_txt(domain)
     if ok and "v=spf1" in txt:
         return True, f"PASS ({txt[:80]})"
@@ -93,7 +90,7 @@ def check_spf(domain: str) -> Tuple[bool, str]:
     return False, "SPF: " + txt
 
 
-def check_dkim(domain: str, selector: str = "default") -> Tuple[bool, str]:
+def check_dkim(domain: str, selector: str = "default") -> tuple[bool, str]:
     ok, txt = _resolve_txt(domain, f"{selector}._domainkey")
     if ok and "v=DKIM1" in txt:
         return True, f"PASS (selector: {selector})"
@@ -102,7 +99,7 @@ def check_dkim(domain: str, selector: str = "default") -> Tuple[bool, str]:
     return False, "DKIM: " + txt
 
 
-def check_dmarc(domain: str) -> Tuple[bool, str]:
+def check_dmarc(domain: str) -> tuple[bool, str]:
     ok, txt = _resolve_txt(domain, "_dmarc")
     if ok and "v=DMARC1" in txt:
         return True, f"PASS ({txt[:80]})"
@@ -125,8 +122,8 @@ def is_disposable_email(email: str) -> bool:
     return domain in _load_disposable_domains()
 
 
-def validate_emails_parallel(emails: List[str], max_workers: int = 10) -> Dict[str, Tuple[bool, str]]:
-    results: Dict[str, Tuple[bool, str]] = {}
+def validate_emails_parallel(emails: list[str], max_workers: int = 10) -> dict[str, tuple[bool, str]]:
+    results: dict[str, tuple[bool, str]] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
         fut = {ex.submit(validate_email_dns, e): e for e in emails}
         for f in concurrent.futures.as_completed(fut):
@@ -138,7 +135,7 @@ def validate_emails_parallel(emails: List[str], max_workers: int = 10) -> Dict[s
     return results
 
 
-def validate_email_dns(email: str) -> Tuple[bool, str]:
+def validate_email_dns(email: str) -> tuple[bool, str]:
     domain = email.split("@")[-1].lower()
 
     if is_disposable_email(email):

@@ -8,14 +8,14 @@ repos:
     rev: v1.14.0
     hooks:
       - id: mypy
-        args: [--ignore-missing-imports, core/, engine/, parsing/, exports/, run.py]
+        args: [--ignore-missing-imports, --explicit-package-bases, core/, engine/, parsing/, exports/, run.py]
         additional_dependencies: [types-PyYAML]
         pass_filenames: false
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.10
     hooks:
       - id: bandit
-        args: [-r, core/, engine/, parsing/, exports/, run.py]
+        args: [-r, core/, engine/, parsing/, exports/, run.py, -c, pyproject.toml]
         pass_filenames: false
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

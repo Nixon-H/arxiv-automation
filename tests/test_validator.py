@@ -1,14 +1,14 @@
 import os
 import tempfile
-import pytest
+
 from core.validator import (
-    validate_email_format,
-    generate_sha256,
     file_checksum,
-    verify_file_integrity,
-    validate_pdf,
-    pre_flight_checks,
+    generate_sha256,
     normalize_unicode,
+    pre_flight_checks,
+    validate_email_format,
+    validate_pdf,
+    verify_file_integrity,
 )
 
 

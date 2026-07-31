@@ -1,8 +1,7 @@
-import os
-import hashlib
 import base64
+import hashlib
 import json
-from typing import Optional, Dict, Any
+import os
 
 from core.logger import AppLogger
 
@@ -17,7 +16,7 @@ def _derive_key(master_password: str) -> bytes:
     return key
 
 
-def _encrypt_data(data: Dict[str, str], master_password: str) -> str:
+def _encrypt_data(data: dict[str, str], master_password: str) -> str:
     key = _derive_key(master_password)
     try:
         from cryptography.fernet import Fernet
@@ -31,7 +30,7 @@ def _encrypt_data(data: Dict[str, str], master_password: str) -> str:
         return base64.urlsafe_b64encode(plain.encode()).decode()
 
 
-def _decrypt_data(token: str, master_password: str) -> Optional[Dict[str, str]]:
+def _decrypt_data(token: str, master_password: str) -> dict[str, str] | None:
     key = _derive_key(master_password)
     try:
         from cryptography.fernet import Fernet, InvalidToken
@@ -40,8 +39,8 @@ def _decrypt_data(token: str, master_password: str) -> Optional[Dict[str, str]]:
         return json.loads(plain.decode())
     except ImportError:
         try:
-            plain = base64.urlsafe_b64decode(token.encode()).decode()
-            return json.loads(plain)
+            decrypted = base64.urlsafe_b64decode(token.encode()).decode()
+            return json.loads(decrypted)
         except Exception:
             return None
     except InvalidToken:
@@ -52,7 +51,7 @@ def _decrypt_data(token: str, master_password: str) -> Optional[Dict[str, str]]:
         return None
 
 
-def save_credentials(creds: Dict[str, str], master_password: str, path: str = _CRED_FILE) -> bool:
+def save_credentials(creds: dict[str, str], master_password: str, path: str = _CRED_FILE) -> bool:
     try:
         token = _encrypt_data(creds, master_password)
         with open(path, "w") as f:
@@ -64,7 +63,7 @@ def save_credentials(creds: Dict[str, str], master_password: str, path: str = _C
         return False
 
 
-def load_credentials(master_password: str, path: str = _CRED_FILE) -> Optional[Dict[str, str]]:
+def load_credentials(master_password: str, path: str = _CRED_FILE) -> dict[str, str] | None:
     if not os.path.exists(path):
         return None
     try:

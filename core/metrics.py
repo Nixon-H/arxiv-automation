@@ -1,18 +1,18 @@
-import time
 import json
-from typing import Dict, Any, Optional
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
+from typing import Any
 
 from core.database import Database
 
 
 class MetricsRegistry:
-    def __init__(self, db: Optional[Database] = None) -> None:
+    def __init__(self, db: Database | None = None) -> None:
         self.db = db
-        self._counters: Dict[str, int] = {}
-        self._gauges: Dict[str, float] = {}
-        self._histograms: Dict[str, list] = {}
+        self._counters: dict[str, int] = {}
+        self._gauges: dict[str, float] = {}
+        self._histograms: dict[str, list] = {}
 
     def counter_inc(self, name: str, value: int = 1) -> None:
         self._counters[name] = self._counters.get(name, 0) + value
@@ -25,8 +25,8 @@ class MetricsRegistry:
             self._histograms[name] = []
         self._histograms[name].append(value)
 
-    def snapshot(self) -> Dict[str, Any]:
-        metrics: Dict[str, Any] = {
+    def snapshot(self) -> dict[str, Any]:
+        metrics: dict[str, Any] = {
             "counters": dict(self._counters),
             "gauges": dict(self._gauges),
             "histograms": {},
@@ -105,7 +105,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
 
 def start_metrics_server(registry: MetricsRegistry, port: int = 9090) -> HTTPServer:
     server = HTTPServer(("127.0.0.1", port), MetricsHandler)
-    server.metrics_registry = registry
+    setattr(server, "metrics_registry", registry)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server

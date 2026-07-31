@@ -2,7 +2,7 @@ import os
 import random
 import string
 import tempfile
-import pytest
+
 from parsing.parser import DataParser
 
 

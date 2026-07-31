@@ -1,8 +1,8 @@
+import os
 import random
 import string
-import tempfile
 import sys
-import os
+import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from parsing.parser import DataParser

@@ -1,11 +1,9 @@
-import os
-import sys
-import re
 import json
 import logging
+import os
+import re
 from datetime import datetime
-from typing import Any, Dict, Optional
-
+from typing import Any
 
 CLR_RESET = "\033[0m"
 CLR_INFO = "\033[94m"
@@ -56,12 +54,12 @@ class StructuredLogRecord:
         self,
         level: str,
         message: str,
-        recipient: Optional[str] = None,
-        account: Optional[str] = None,
-        status: Optional[str] = None,
-        latency: Optional[float] = None,
-        correlation_id: Optional[str] = None,
-        extra: Optional[Dict[str, Any]] = None,
+        recipient: str | None = None,
+        account: str | None = None,
+        status: str | None = None,
+        latency: float | None = None,
+        correlation_id: str | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         self.timestamp = datetime.now().isoformat()
         self.level = level
@@ -73,8 +71,8 @@ class StructuredLogRecord:
         self.correlation_id = correlation_id
         self.extra = extra or {}
 
-    def to_dict(self) -> Dict[str, Any]:
-        d: Dict[str, Any] = {
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
             "timestamp": self.timestamp,
             "level": self.level,
             "message": self.message,
@@ -96,7 +94,7 @@ class StructuredLogRecord:
 
 class AppLogger:
     _log_dir = "logs"
-    _structured_log_file: Optional[str] = None
+    _structured_log_file: str | None = None
 
     @classmethod
     def initialize(cls, log_dir: str = "logs") -> None:

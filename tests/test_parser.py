@@ -1,9 +1,7 @@
 import os
-import json
 import tempfile
-import pytest
-from parsing.parser import DataParser, DataParserError, DuplicateStats, _record_hash
 
+from parsing.parser import DataParser, DuplicateStats, _record_hash
 
 SAMPLE_TXT_BLOCKS = """\
 Dr. Alice Smith

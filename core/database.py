@@ -2,9 +2,9 @@ import os
 import sqlite3
 import threading
 import time
-from datetime import datetime
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Any
 
 DB_PATH = "data/automation.db"
 
@@ -14,7 +14,7 @@ def get_db_path() -> str:
 
 
 class Database:
-    _instances: Dict[str, "Database"] = {}
+    _instances: dict[str, "Database"] = {}
     _lock = threading.Lock()
 
     def __init__(self, db_path: str) -> None:
@@ -22,7 +22,7 @@ class Database:
         self._local = threading.local()
 
     @classmethod
-    def get_instance(cls, db_path: Optional[str] = None) -> "Database":
+    def get_instance(cls, db_path: str | None = None) -> "Database":
         path = db_path or get_db_path()
         with cls._lock:
             if path not in cls._instances:
@@ -55,16 +55,16 @@ class Database:
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         return self._get_conn().execute(sql, params)
 
-    def executemany(self, sql: str, params: List[tuple]) -> sqlite3.Cursor:
+    def executemany(self, sql: str, params: list[tuple]) -> sqlite3.Cursor:
         return self._get_conn().executemany(sql, params)
 
-    def fetchone(self, sql: str, params: tuple = ()) -> Optional[Dict[str, Any]]:
+    def fetchone(self, sql: str, params: tuple = ()) -> dict[str, Any] | None:
         row = self._get_conn().execute(sql, params).fetchone()
         if row:
             return dict(row)
         return None
 
-    def fetchall(self, sql: str, params: tuple = ()) -> List[Dict[str, Any]]:
+    def fetchall(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
         return [dict(r) for r in self._get_conn().execute(sql, params).fetchall()]
 
     def initialize(self) -> None:
@@ -144,7 +144,7 @@ class Database:
 
     SCHEMA_VERSION = 5
 
-    MIGRATIONS: Dict[int, List[str]] = {
+    MIGRATIONS: dict[int, list[str]] = {
         1: [
             "ALTER TABLE sends ADD COLUMN latency_details TEXT DEFAULT ''",
         ],
@@ -192,7 +192,7 @@ class Database:
         )
         return self.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-    def get_recipient_by_hash(self, email_hash: str) -> Optional[Dict[str, Any]]:
+    def get_recipient_by_hash(self, email_hash: str) -> dict[str, Any] | None:
         return self.fetchone("SELECT * FROM recipients WHERE email_hash = ?", (email_hash,))
 
     def count_recipients(self) -> int:
@@ -211,10 +211,10 @@ class Database:
             (recipient_id, account_email, status, error_type, error_detail, latency_ms, latency_details, body_fingerprint, smtp_conversation, correlation_id),
         )
 
-    def get_last_send(self) -> Optional[Dict[str, Any]]:
+    def get_last_send(self) -> dict[str, Any] | None:
         return self.fetchone("SELECT * FROM sends ORDER BY id DESC LIMIT 1")
 
-    def get_send_stats(self) -> Dict[str, int]:
+    def get_send_stats(self) -> dict[str, int]:
         stats = self.fetchone("""
             SELECT
                 COUNT(*) as total,
@@ -295,10 +295,10 @@ class Database:
             (until, email),
         )
 
-    def get_all_accounts(self) -> List[Dict[str, Any]]:
+    def get_all_accounts(self) -> list[dict[str, Any]]:
         return self.fetchall("SELECT * FROM accounts ORDER BY email")
 
-    def get_healthy_accounts(self, exclude_suspended: bool = True) -> List[Dict[str, Any]]:
+    def get_healthy_accounts(self, exclude_suspended: bool = True) -> list[dict[str, Any]]:
         query = "SELECT * FROM accounts"
         if exclude_suspended:
             query += " WHERE suspended_until <= ? OR suspended_until IS NULL"
@@ -306,7 +306,7 @@ class Database:
             return self.fetchall(query, (now,))
         return self.fetchall(query)
 
-    def get_best_account(self) -> Optional[Dict[str, Any]]:
+    def get_best_account(self) -> dict[str, Any] | None:
         now = time.time()
         return self.fetchone("""
             SELECT * FROM accounts
@@ -327,7 +327,7 @@ class Database:
                 max_per_day=excluded.max_per_day
         """, (provider, max_hour, max_day))
 
-    def check_rate_limit(self, provider: str) -> Tuple[bool, str]:
+    def check_rate_limit(self, provider: str) -> tuple[bool, str]:
         rl = self.fetchone("SELECT * FROM rate_limits WHERE provider = ?", (provider,))
         if not rl:
             return True, ""
@@ -379,7 +379,7 @@ class Database:
             (email, bounce_type, smtp_code, diagnostic),
         )
 
-    def get_contact_history(self, email: str) -> Optional[Dict[str, Any]]:
+    def get_contact_history(self, email: str) -> dict[str, Any] | None:
         r = self.fetchone("""
             SELECT recipient_id, last_name, paper_title, email_hash
             FROM recipients WHERE email = ?
@@ -412,7 +412,7 @@ class Database:
             "bounces": bounces[:3],
         }
 
-    def get_domain_reputation(self) -> List[Dict[str, Any]]:
+    def get_domain_reputation(self) -> list[dict[str, Any]]:
         return self.fetchall("""
             SELECT
                 SUBSTR(r.email, INSTR(r.email, '@') + 1) AS domain,
@@ -446,7 +446,7 @@ class Database:
             (recipient_id,),
         )
 
-    def get_followup_candidates(self, days: int, max_followups: int = 2) -> List[Dict[str, Any]]:
+    def get_followup_candidates(self, days: int, max_followups: int = 2) -> list[dict[str, Any]]:
         """Recipients who got a successful send, never replied, and haven't been
         followed up more than max_followups times. Follow-up eligibility starts
         `days` after the last send/follow-up."""
@@ -465,7 +465,7 @@ class Database:
             ORDER BY last_send.last_send_at ASC
         """, (max_followups, f"-{days} days"))
 
-    def get_followup_summary(self) -> Dict[str, int]:
+    def get_followup_summary(self) -> dict[str, int]:
         r = self.fetchone("""
             SELECT
                 COUNT(DISTINCT r.id) AS candidates,

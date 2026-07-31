@@ -1,11 +1,9 @@
 import re
-from typing import Dict, Tuple, Optional
 
 from core.database import Database
 from core.logger import AppLogger
 
-
-SMTP_RESPONSE_MAP: Dict[int, Dict[str, str]] = {
+SMTP_RESPONSE_MAP: dict[int, dict[str, str]] = {
     211: {"label": "System Status", "action": "info"},
     214: {"label": "Help Message", "action": "info"},
     220: {"label": "Service Ready", "action": "ok"},

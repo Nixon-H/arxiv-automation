@@ -1,7 +1,6 @@
-import os
-import tempfile
 import pytest
-from engine.templates import TemplateEngine, TemplateRenderError
+
+from engine.templates import TemplateEngine
 
 
 @pytest.fixture

@@ -1,11 +1,10 @@
+import importlib
 import os
 import sys
-import importlib
-import inspect
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from core.logger import AppLogger
-
 
 PLUGIN_DIR = "plugins"
 
@@ -13,13 +12,13 @@ PLUGIN_DIR = "plugins"
 class PluginManager:
     def __init__(self, plugin_dir: str = PLUGIN_DIR) -> None:
         self.plugin_dir = plugin_dir
-        self._before_hooks: List[Callable] = []
-        self._after_hooks: List[Callable] = []
-        self._before_validate_hooks: List[Callable] = []
-        self._after_failure_hooks: List[Callable] = []
-        self._after_retry_hooks: List[Callable] = []
-        self._before_archive_hooks: List[Callable] = []
-        self._plugins: Dict[str, Any] = {}
+        self._before_hooks: list[Callable] = []
+        self._after_hooks: list[Callable] = []
+        self._before_validate_hooks: list[Callable] = []
+        self._after_failure_hooks: list[Callable] = []
+        self._after_retry_hooks: list[Callable] = []
+        self._before_archive_hooks: list[Callable] = []
+        self._plugins: dict[str, Any] = {}
         self.load_all()
 
     def load_all(self) -> None:
@@ -75,7 +74,7 @@ class PluginManager:
             self._plugins[name] = mod
             AppLogger.info(f"Plugin loaded: {name} ({hooks} hook(s))")
 
-    def run_before_send(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def run_before_send(self, context: dict[str, Any]) -> dict[str, Any]:
         for hook in self._before_hooks:
             try:
                 result = hook(context)
@@ -85,14 +84,14 @@ class PluginManager:
                 AppLogger.warn(f"before_send plugin error: {e}")
         return context
 
-    def run_after_send(self, context: Dict[str, Any], result: Dict[str, Any]) -> None:
+    def run_after_send(self, context: dict[str, Any], result: dict[str, Any]) -> None:
         for hook in self._after_hooks:
             try:
                 hook(context, result)
             except Exception as e:
                 AppLogger.warn(f"after_send plugin error: {e}")
 
-    def run_before_validate(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def run_before_validate(self, context: dict[str, Any]) -> dict[str, Any]:
         for hook in self._before_validate_hooks:
             try:
                 result = hook(context)
@@ -102,21 +101,21 @@ class PluginManager:
                 AppLogger.warn(f"before_validate plugin error: {e}")
         return context
 
-    def run_after_failure(self, context: Dict[str, Any]) -> None:
+    def run_after_failure(self, context: dict[str, Any]) -> None:
         for hook in self._after_failure_hooks:
             try:
                 hook(context)
             except Exception as e:
                 AppLogger.warn(f"after_failure plugin error: {e}")
 
-    def run_after_retry(self, context: Dict[str, Any], attempt: int) -> None:
+    def run_after_retry(self, context: dict[str, Any], attempt: int) -> None:
         for hook in self._after_retry_hooks:
             try:
                 hook(context, attempt)
             except Exception as e:
                 AppLogger.warn(f"after_retry plugin error: {e}")
 
-    def run_before_archive(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def run_before_archive(self, context: dict[str, Any]) -> dict[str, Any]:
         for hook in self._before_archive_hooks:
             try:
                 result = hook(context)
@@ -132,30 +131,30 @@ class PluginManager:
 
 
 def hook_before_send(func: Callable) -> Callable:
-    func._before_send = True
+    setattr(func, "_before_send", True)
     return func
 
 
 def hook_after_send(func: Callable) -> Callable:
-    func._after_send = True
+    setattr(func, "_after_send", True)
     return func
 
 
 def hook_before_validate(func: Callable) -> Callable:
-    func._before_validate = True
+    setattr(func, "_before_validate", True)
     return func
 
 
 def hook_after_failure(func: Callable) -> Callable:
-    func._after_failure = True
+    setattr(func, "_after_failure", True)
     return func
 
 
 def hook_after_retry(func: Callable) -> Callable:
-    func._after_retry = True
+    setattr(func, "_after_retry", True)
     return func
 
 
 def hook_before_archive(func: Callable) -> Callable:
-    func._before_archive = True
+    setattr(func, "_before_archive", True)
     return func

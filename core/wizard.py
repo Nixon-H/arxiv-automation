@@ -1,7 +1,6 @@
 import json
 import os
-import sys
-from typing import Any, Dict, List
+from typing import Any
 
 from core.logger import AppLogger
 
@@ -39,7 +38,7 @@ _TEMPLATE = """# arXiv Endorsement Dispatch — Configuration
 }
 """
 
-_PROFILES: Dict[str, Dict[str, Any]] = {
+_PROFILES: dict[str, dict[str, Any]] = {
     "gmail": {"server": "smtp.gmail.com", "port": 587, "max_per_hour": 20, "max_per_day": 200},
     "outlook": {"server": "smtp.office365.com", "port": 587, "max_per_hour": 15, "max_per_day": 150},
     "yahoo": {"server": "smtp.mail.yahoo.com", "port": 587, "max_per_hour": 10, "max_per_day": 100},
@@ -76,7 +75,7 @@ def run_wizard() -> int:
     your_paper = _ask("Your paper title")
     arxiv_cat = _ask("arXiv category", "cs.AI")
 
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "config_version": 2,
         "sender_identity": {
             "your_name": your_name,
@@ -123,12 +122,12 @@ def run_wizard() -> int:
             break
 
     # Write .env
-    env_lines: List[str] = []
+    env_lines: list[str] = []
     if os.path.exists(_ENV_PATH):
-        with open(_ENV_PATH, "r") as f:
-            env_lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
+        with open(_ENV_PATH) as f:
+            env_lines = [line.strip() for line in f if line.strip() and not line.startswith("#")]
 
-    existing: Dict[str, str] = {}
+    existing: dict[str, str] = {}
     for line in env_lines:
         if "=" in line:
             k, v = line.split("=", 1)
@@ -152,9 +151,9 @@ def run_wizard() -> int:
     AppLogger.success(f"Written {_CONFIG_PATH} and {_ENV_PATH}")
     print()
     print("  Next steps:")
-    print(f"    1. Edit .env if passwords need updating")
-    print(f"    2. Run: python run.py --validate-config")
-    print(f"    3. Run: python run.py --dry-run")
-    print(f"    4. To send: python run.py --live --send N")
+    print("    1. Edit .env if passwords need updating")
+    print("    2. Run: python run.py --validate-config")
+    print("    3. Run: python run.py --dry-run")
+    print("    4. To send: python run.py --live --send N")
     print()
     return 0

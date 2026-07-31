@@ -1,38 +1,36 @@
-import os
-import time
-import random
 import argparse
-import webbrowser
-import email.policy
+import os
+import random
+import time
 import uuid
-from email.message import EmailMessage
+import webbrowser
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from email.message import EmailMessage
+from typing import Any
 
-from core.logger import AppLogger
 from core.config import AppConfig
 from core.database import Database
-from core.ratelimiter import RateLimiter
-from core.lock import FileLock
 from core.doctor import Doctor
+from core.email_quality import run_email_quality_checks
+from core.exceptions import FileLockError
+from core.i18n import Translator
+from core.lock import FileLock
+from core.logger import AppLogger
 from core.metrics import MetricsRegistry, start_metrics_server
 from core.notifications import Notifier
-from core.i18n import Translator
+from core.ratelimiter import RateLimiter
 from core.validator import (
-    validate_email_format,
     generate_sha256,
-    verify_file_integrity,
-    validate_pdf,
     pre_flight_checks,
+    validate_email_format,
+    validate_pdf,
 )
-from core.exceptions import SafetyLockoutError, FileLockError
-from core.email_quality import run_email_quality_checks
-from parsing.parser import DataParser, DuplicateStats
-from parsing.bounce import BounceClassifier
-from engine.templates import TemplateEngine
-from engine.smtp import SmtpEngine
 from engine.plugins import PluginManager
+from engine.smtp import SmtpEngine
+from engine.templates import TemplateEngine
 from exports.report import ReportExporter
+from parsing.bounce import BounceClassifier
+from parsing.parser import DataParser, DuplicateStats
 
 
 class OrchestrationRunner:
@@ -75,7 +73,7 @@ class OrchestrationRunner:
             timeout=float(self.limits.get("smtp_timeout_seconds", 30.0)),
         )
 
-        self.stats = {
+        self.stats: dict[str, Any] = {
             "sent": 0,
             "failed": 0,
             "skipped": 0,
@@ -165,7 +163,7 @@ class OrchestrationRunner:
             AppLogger.error("No endorser data file found.")
             return
 
-        records: List[Dict[str, str]]
+        records: list[dict[str, str]]
         dup_stats: DuplicateStats
         records, dup_stats = DataParser.auto_detect_with_stats(input_file)
         if not records:
@@ -207,7 +205,6 @@ class OrchestrationRunner:
         last_send = self.db.get_last_send()
         cooldown = float(self.limits.get("cooldown_hours", 24.0))
         if last_send and last_send["timestamp"]:
-            import datetime
             if hasattr(last_send["timestamp"], "timestamp"):
                 last_ts = last_send["timestamp"].timestamp()
             else:
@@ -338,14 +335,14 @@ class OrchestrationRunner:
         self.db.mark_replied(email)
         AppLogger.success(f"Marked {email} as replied — no further follow-ups.")
 
-    def _build_greeting(self, target: Dict[str, str]) -> str:
+    def _build_greeting(self, target: dict[str, str]) -> str:
         title = target.get("title", "").strip()
         last_name = target["last_name"]
         if title:
             return f"{title} {last_name}"
         return last_name
 
-    def dry_run_single(self, records: List[Dict[str, str]], idx: int) -> None:
+    def dry_run_single(self, records: list[dict[str, str]], idx: int) -> None:
         target = records[idx]
         context = {
             "last_name": target["last_name"],
@@ -376,7 +373,7 @@ class OrchestrationRunner:
         if self.plugins.plugin_count:
                 print(f"  Plugins: {self.plugins.plugin_count} active")
 
-    def run_test_mode(self, records: List[Dict[str, str]]) -> None:
+    def run_test_mode(self, records: list[dict[str, str]]) -> None:
         target_outbox = self.args.test if "@" in self.args.test else "test@example.com"
         AppLogger.info(f"Test mode — sending to {target_outbox}")
 
@@ -413,12 +410,12 @@ class OrchestrationRunner:
         self.plugins.run_after_send(context, result)
 
         if success:
-            AppLogger.success(f"Test email sent.")
+            AppLogger.success("Test email sent.")
             self.stats["sent"] += 1
         else:
             AppLogger.error(f"Test failed: {err_class.value}: {err_msg}")
 
-    def live_send(self, records: List[Dict[str, str]], idx: int) -> bool:
+    def live_send(self, records: list[dict[str, str]], idx: int) -> bool:
         target = records[idx]
         email = target["email"]
         email_hash = generate_sha256(email)
@@ -529,16 +526,16 @@ class OrchestrationRunner:
 
         for acct in self.typed_accounts:
             doc.add(doc.check_file_exists(acct.email.replace("@", "_at_"), f"Account {acct.email}"))
-            doc.add(lambda a=acct: ("SMTP " + a.email, True, a.server + ":" + str(a.port)))
+            doc.add(lambda: ("SMTP " + acct.email, True, acct.server + ":" + str(acct.port)))
 
         doc.add(doc.check_import("json"))
         doc.add(doc.check_import("csv"))
-        doc.add(("SQLite DB", True, "Connected"))
+        doc.add(lambda: ("SQLite DB", True, "Connected"))
 
         if os.path.exists("my_paper.pdf"):
             doc.add(doc.check_file_exists("my_paper.pdf", "PDF Attachment"))
 
-        doc.add(("File Lock", not self.lock.is_locked(), "Not locked" if not self.lock.is_locked() else "Locked by " + str(FileLock.get_locked_pid())))
+        doc.add(lambda: ("File Lock", not self.lock.is_locked(), "Not locked" if not self.lock.is_locked() else "Locked by " + str(FileLock.get_locked_pid())))
 
         for acct in self.typed_accounts[:1]:
             domain = acct.email.split("@")[-1]
@@ -601,7 +598,7 @@ class OrchestrationRunner:
             f.write(systemd_timer.strip() + "\n")
         AppLogger.success("Scheduler files written to scheduler/")
 
-    def generate_preview_html(self, records: List[Dict[str, str]]) -> None:
+    def generate_preview_html(self, records: list[dict[str, str]]) -> None:
         html_parts = []
         idx = self.db.get_progress_index()
         for i, rec in enumerate(records):
@@ -832,12 +829,9 @@ class OrchestrationRunner:
                 pass
 
     def _now_stamp(self) -> str:
-        from datetime import datetime
         return datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    def archive_sent_email(self, record: Dict[str, str]) -> None:
-        import email.policy
-        from email.message import EmailMessage
+    def archive_sent_email(self, record: dict[str, str]) -> None:
         from datetime import datetime
 
         context = {

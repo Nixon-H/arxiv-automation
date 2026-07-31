@@ -1,9 +1,7 @@
 import os
 import re
 import subprocess
-import json
-from typing import Optional, Dict, Any
-
+from typing import Any
 
 _ENV_REF = re.compile(r"\$\{([^}]+)\}")
 _SECRET_REF = re.compile(r"secrets://([^/]+)/(.+)")
@@ -11,7 +9,7 @@ _SECRET_REF = re.compile(r"secrets://([^/]+)/(.+)")
 
 class SecretsResolver:
     def __init__(self) -> None:
-        self._cache: Dict[str, str] = {}
+        self._cache: dict[str, str] = {}
 
     def resolve(self, value: str) -> str:
         if _ENV_REF.search(value):
@@ -71,7 +69,7 @@ class SecretsResolver:
     def _hashicorp_vault(self, path: str) -> str:
         try:
             result = subprocess.run(
-                ["vault", "kv", "get", f"-field=password", path],
+                ["vault", "kv", "get", "-field=password", path],
                 capture_output=True, text=True, timeout=10,
             )
             if result.returncode == 0:
@@ -80,7 +78,7 @@ class SecretsResolver:
             pass
         raise RuntimeError(f"Vault lookup failed for '{path}'")
 
-    def resolve_all(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def resolve_all(self, config: dict[str, Any]) -> dict[str, Any]:
         if isinstance(config, dict):
             return {k: self.resolve_all(v) for k, v in config.items()}
         if isinstance(config, list):

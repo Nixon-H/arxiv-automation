@@ -1,7 +1,7 @@
 import os
 import tempfile
-import pytest
-from engine.plugins import PluginManager, hook_before_send, hook_after_send
+
+from engine.plugins import PluginManager, hook_after_send, hook_before_send
 
 
 class TestPluginManager:

@@ -1,10 +1,7 @@
-import os
-import sys
-import time
-import fcntl
 import atexit
-from typing import Optional
-
+import fcntl
+import os
+import time
 
 LOCK_FILE = "data/run.lock"
 
@@ -12,7 +9,7 @@ LOCK_FILE = "data/run.lock"
 class FileLock:
     def __init__(self, lock_path: str = LOCK_FILE) -> None:
         self.lock_path = lock_path
-        self._fd: Optional[int] = None
+        self._fd: int | None = None
 
     def acquire(self, timeout: float = 0.0) -> bool:
         os.makedirs(os.path.dirname(self.lock_path), exist_ok=True)
@@ -23,7 +20,7 @@ class FileLock:
                 try:
                     fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     break
-                except (IOError, BlockingIOError):
+                except (OSError, BlockingIOError):
                     if timeout > 0 and (time.time() - start) >= timeout:
                         return False
                     time.sleep(0.5)
@@ -63,7 +60,7 @@ class FileLock:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 fcntl.flock(fd, fcntl.LOCK_UN)
                 return False
-            except (IOError, BlockingIOError):
+            except (OSError, BlockingIOError):
                 return True
             finally:
                 os.close(fd)
@@ -71,11 +68,11 @@ class FileLock:
             return False
 
     @staticmethod
-    def get_locked_pid() -> Optional[int]:
+    def get_locked_pid() -> int | None:
         if not os.path.exists(LOCK_FILE):
             return None
         try:
-            with open(LOCK_FILE, "r") as f:
+            with open(LOCK_FILE) as f:
                 return int(f.read().strip())
         except (ValueError, OSError):
             return None

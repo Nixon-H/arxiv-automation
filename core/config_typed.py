@@ -1,9 +1,7 @@
-from dataclasses import dataclass, field
-from typing import List, Tuple, Optional
 import json
 import os
 import re
-
+from dataclasses import dataclass, field
 
 _ENV_REF = re.compile(r"\$\{([^}]+)\}")
 
@@ -39,7 +37,7 @@ class SenderIdentity:
 class SafetyLimits:
     cooldown_hours: float = 24.0
     smtp_timeout_seconds: float = 30.0
-    random_delay_range_seconds: Tuple[float, float] = (5.0, 15.0)
+    random_delay_range_seconds: tuple[float, float] = (5.0, 15.0)
     max_retries: int = 3
     initial_backoff_seconds: float = 2.0
     attach_pdf: bool = False
@@ -49,7 +47,7 @@ class SafetyLimits:
 class TypedConfig:
     sender_identity: SenderIdentity = field(default_factory=SenderIdentity)
     safety_limits: SafetyLimits = field(default_factory=SafetyLimits)
-    accounts: List[SMTPAccount] = field(default_factory=list)
+    accounts: list[SMTPAccount] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict) -> "TypedConfig":
@@ -107,11 +105,11 @@ class TypedConfig:
 
     @classmethod
     def from_json(cls, path: str) -> "TypedConfig":
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             raw = json.load(f)
         return cls.from_dict(_resolve_env_vars(raw))
 
-    def get_provider_limits(self, provider: str) -> Tuple[int, int]:
+    def get_provider_limits(self, provider: str) -> tuple[int, int]:
         for acct in self.accounts:
             if acct.provider == provider:
                 return acct.max_per_hour, acct.max_per_day

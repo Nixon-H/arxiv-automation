@@ -1,19 +1,17 @@
-import os
-import sys
-import json
 import importlib
+import os
 import subprocess
-from typing import List, Tuple, Callable, Dict, Any
+import sys
+from collections.abc import Callable
 
 from core.logger import AppLogger
 
-
-CheckFunc = Callable[[], Tuple[str, bool, str]]
+CheckFunc = Callable[[], tuple[str, bool, str]]
 
 
 class Doctor:
     def __init__(self) -> None:
-        self.checks: List[CheckFunc] = []
+        self.checks: list[CheckFunc] = []
         self.passed = 0
         self.failed = 0
         self.warnings = 0
@@ -55,7 +53,7 @@ class Doctor:
 
     @staticmethod
     def check_file_exists(path: str, label: str = "") -> CheckFunc:
-        def _check() -> Tuple[str, bool, str]:
+        def _check() -> tuple[str, bool, str]:
             ok = os.path.exists(path)
             size = os.path.getsize(path) if ok else 0
             msg = f"Found ({size} bytes)" if ok else "Missing"
@@ -64,7 +62,7 @@ class Doctor:
 
     @staticmethod
     def check_import(module: str) -> CheckFunc:
-        def _check() -> Tuple[str, bool, str]:
+        def _check() -> tuple[str, bool, str]:
             try:
                 importlib.import_module(module)
                 return f"import {module}", True, "OK"
@@ -74,7 +72,7 @@ class Doctor:
 
     @staticmethod
     def check_writable(path: str) -> CheckFunc:
-        def _check() -> Tuple[str, bool, str]:
+        def _check() -> tuple[str, bool, str]:
             try:
                 os.makedirs(path, exist_ok=True)
                 test_file = os.path.join(path, ".write_test")
@@ -88,7 +86,7 @@ class Doctor:
 
     @staticmethod
     def check_command(cmd: str, args: str = "--version") -> CheckFunc:
-        def _check() -> Tuple[str, bool, str]:
+        def _check() -> tuple[str, bool, str]:
             try:
                 result = subprocess.run(
                     [cmd, args], capture_output=True, text=True, timeout=5,
@@ -103,7 +101,7 @@ class Doctor:
 
     @staticmethod
     def check_python_version() -> CheckFunc:
-        def _check() -> Tuple[str, bool, str]:
+        def _check() -> tuple[str, bool, str]:
             v = sys.version_info
             ok = v.major >= 3 and v.minor >= 10
             return "python version", ok, f"{v.major}.{v.minor}.{v.micro}"
@@ -111,7 +109,7 @@ class Doctor:
 
     @staticmethod
     def check_attachment(path: str) -> CheckFunc:
-        def _check() -> Tuple[str, bool, str]:
+        def _check() -> tuple[str, bool, str]:
             if not os.path.exists(path):
                 return f"attachment {path}", False, "Not found"
             size = os.path.getsize(path)
@@ -131,7 +129,7 @@ class Doctor:
 
     @staticmethod
     def check_template_diff(path: str) -> CheckFunc:
-        def _check() -> Tuple[str, bool, str]:
+        def _check() -> tuple[str, bool, str]:
             if not os.path.exists(path):
                 return f"diff {path}", True, "No template yet"
             try:
@@ -151,8 +149,8 @@ class Doctor:
 
     @staticmethod
     def check_email_auth(domain: str) -> CheckFunc:
-        from core.dns_validator import check_spf, check_dkim, check_dmarc
-        def _check() -> Tuple[str, bool, str]:
+        from core.dns_validator import check_dkim, check_dmarc, check_spf
+        def _check() -> tuple[str, bool, str]:
             spf_ok, spf_msg = check_spf(domain)
             dkim_ok, dkim_msg = check_dkim(domain)
             dmarc_ok, dmarc_msg = check_dmarc(domain)
@@ -167,7 +165,7 @@ class Doctor:
     @staticmethod
     def create_bundle(output: str = "diagnostics.zip") -> str:
         import zipfile
-        files: Dict[str, str] = {}
+        files: dict[str, str] = {}
         if os.path.exists("config.json"):
             files["config.json"] = "config.json"
         for d, label in [("logs", "logs"), ("data", "data"), ("templates", "templates"), ("plugins", "plugins")]:

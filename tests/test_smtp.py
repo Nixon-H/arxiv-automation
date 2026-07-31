@@ -1,6 +1,7 @@
-from engine.smtp import classify_smtp_error, SmtpErrorClass, format_capabilities, CAPABILITY_LABELS
 import smtplib
 import ssl
+
+from engine.smtp import SmtpErrorClass, classify_smtp_error, format_capabilities
 
 
 def test_classify_auth_error():

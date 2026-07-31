@@ -1,11 +1,7 @@
+import hashlib
 import os
 import re
-import hashlib
 import unicodedata
-from typing import Optional, Tuple
-
-from core.exceptions import IntegrityCheckError
-
 
 EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 
@@ -22,7 +18,7 @@ def generate_sha256(text: str) -> str:
     return hashlib.sha256(text.lower().strip().encode("utf-8")).hexdigest()
 
 
-def file_checksum(file_path: str, algorithm: str = "sha256") -> Optional[str]:
+def file_checksum(file_path: str, algorithm: str = "sha256") -> str | None:
     if not os.path.exists(file_path):
         return None
     h = hashlib.new(algorithm)
@@ -32,8 +28,8 @@ def file_checksum(file_path: str, algorithm: str = "sha256") -> Optional[str]:
     return h.hexdigest()
 
 
-def verify_file_integrity(file_path: str, expected_checksum: Optional[str] = None,
-                          max_size_mb: float = 10.0) -> Tuple[bool, str]:
+def verify_file_integrity(file_path: str, expected_checksum: str | None = None,
+                          max_size_mb: float = 10.0) -> tuple[bool, str]:
     if not os.path.exists(file_path):
         return False, f"File not found: {file_path}"
 
@@ -48,7 +44,7 @@ def verify_file_integrity(file_path: str, expected_checksum: Optional[str] = Non
     return True, f"OK ({size_mb:.1f}MB)"
 
 
-def validate_pdf(file_path: str) -> Tuple[bool, str]:
+def validate_pdf(file_path: str) -> tuple[bool, str]:
     if not os.path.exists(file_path):
         return False, "PDF not found"
     with open(file_path, "rb") as f:
@@ -62,8 +58,6 @@ def pre_flight_checks(checks: list) -> bool:
     all_ok = True
     for name, ok, msg in checks:
         status = "PASS" if ok else "FAIL"
-        color = "" if ok else ""
-        reset = ""
         print(f"  [{status}] {name}: {msg}")
         if not ok:
             all_ok = False

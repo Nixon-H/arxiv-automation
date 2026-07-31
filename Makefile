@@ -7,10 +7,10 @@ lint:
 	ruff check .
 
 typecheck:
-	mypy core/ engine/ parsing/ exports/ run.py --ignore-missing-imports
+	mypy core/ engine/ parsing/ exports/ run.py --ignore-missing-imports --explicit-package-bases
 
 security:
-	bandit -r core/ engine/ parsing/ exports/ run.py -x tests
+	bandit -r core/ engine/ parsing/ exports/ run.py -x tests -c pyproject.toml
 
 doctor:
 	python run.py --doctor

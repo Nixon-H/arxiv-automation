@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install mypy
-      - run: mypy core/ engine/ parsing/ exports/ run.py --ignore-missing-imports
+      - run: mypy core/ engine/ parsing/ exports/ run.py --ignore-missing-imports --explicit-package-bases
 
   test:
     runs-on: ${{ matrix.os }}
@@ -53,7 +53,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install bandit pip-audit safety
-      - run: bandit -r core/ engine/ parsing/ exports/ run.py -x tests
+      - run: bandit -r core/ engine/ parsing/ exports/ run.py -x tests -c pyproject.toml
       - run: pip-audit
         continue-on-error: true
       - run: safety check

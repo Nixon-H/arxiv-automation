@@ -1,9 +1,9 @@
-import os
 import json
-import time
+import os
 import shutil
+import time
 from datetime import datetime
-from typing import Dict, Any, List, Optional, Set, Tuple
+from typing import Any
 
 from core.logger import AppLogger
 
@@ -40,7 +40,7 @@ class AccountHealth:
     def is_suspended(self) -> bool:
         return time.time() < self.suspended_until
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "email": self.email,
             "sent_today": self.sent_today,
@@ -53,7 +53,7 @@ class AccountHealth:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "AccountHealth":
+    def from_dict(cls, d: dict[str, Any]) -> "AccountHealth":
         h = cls(d.get("email", ""))
         h.sent_today = d.get("sent_today", 0)
         h.failures_today = d.get("failures_today", 0)
@@ -72,9 +72,9 @@ class ProgressTracker:
         self.current_index: int = 0
         self.last_sent_timestamp: float = 0.0
         self.current_account_idx: int = 0
-        self.sent_history_hashes: Set[str] = set()
-        self.queue_remaining: List[int] = []
-        self.account_health: Dict[str, AccountHealth] = {}
+        self.sent_history_hashes: set[str] = set()
+        self.queue_remaining: list[int] = []
+        self.account_health: dict[str, AccountHealth] = {}
         self.last_error: str = ""
         self.ensure_directories()
         self.load_state()
@@ -88,7 +88,7 @@ class ProgressTracker:
             self.save_state()
             return
 
-        with open(self.data_path, "r", encoding="utf-8") as f:
+        with open(self.data_path, encoding="utf-8") as f:
             try:
                 state = json.load(f)
             except (json.JSONDecodeError, Exception) as e:
@@ -141,7 +141,7 @@ class ProgressTracker:
             json.dump(state, f, indent=4)
         os.replace(tmp_path, self.data_path)
 
-    def is_cooldown_active(self, cooldown_hours: float) -> Tuple[bool, float]:
+    def is_cooldown_active(self, cooldown_hours: float) -> tuple[bool, float]:
         if self.last_sent_timestamp == 0.0:
             return False, 0.0
         elapsed = time.time() - self.last_sent_timestamp
@@ -182,8 +182,8 @@ class ProgressTracker:
         self.account_health[account_email].suspend(hours)
         self.save_state()
 
-    def get_healthy_accounts(self, accounts: List[Dict[str, Any]]) -> List[int]:
-        healthy: List[int] = []
+    def get_healthy_accounts(self, accounts: list[dict[str, Any]]) -> list[int]:
+        healthy: list[int] = []
         for idx, acct in enumerate(accounts):
             email = acct["email"]
             health = self.account_health.get(email)

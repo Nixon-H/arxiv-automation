@@ -1,13 +1,12 @@
+import csv
+import hashlib
+import json
 import os
 import re
-import csv
-import json
-import hashlib
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple
+from dataclasses import dataclass
 
-from core.logger import AppLogger
 from core.exceptions import DataParserError
+from core.logger import AppLogger
 from core.validator import normalize_unicode, validate_email_format
 
 
@@ -36,7 +35,7 @@ class DuplicateStats:
         return f"Duplicates skipped: {' | '.join(parts)}"
 
 
-def _record_hash(rec: Dict[str, str]) -> str:
+def _record_hash(rec: dict[str, str]) -> str:
     return hashlib.sha256(
         f"{rec['email']}|{rec['last_name']}|{rec['paper_title']}".encode()
     ).hexdigest()
@@ -79,7 +78,7 @@ def extract_last_name(full_line: str) -> str:
 
 class DataParser:
     @classmethod
-    def auto_detect(cls, file_path: str) -> List[Dict[str, str]]:
+    def auto_detect(cls, file_path: str) -> list[dict[str, str]]:
         records, _ = cls.auto_detect_with_stats(file_path)
         return records
 
@@ -88,7 +87,7 @@ class DataParser:
         """Magic-byte sniffing: detect format from content when extension is
         missing, unknown, or the extension-based parser yielded nothing."""
         try:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 head = f.read(2048).lstrip()
         except OSError:
             return "txt"
@@ -105,7 +104,7 @@ class DataParser:
         return "txt"
 
     @classmethod
-    def auto_detect_with_stats(cls, file_path: str) -> Tuple[List[Dict[str, str]], DuplicateStats]:
+    def auto_detect_with_stats(cls, file_path: str) -> tuple[list[dict[str, str]], DuplicateStats]:
         if not os.path.exists(file_path):
             return [], DuplicateStats()
 
@@ -140,11 +139,11 @@ class DataParser:
         return clean, stats
 
     @classmethod
-    def _deduplicate(cls, records: List[Dict[str, str]]) -> Tuple[List[Dict[str, str]], DuplicateStats]:
+    def _deduplicate(cls, records: list[dict[str, str]]) -> tuple[list[dict[str, str]], DuplicateStats]:
         seen_emails: set = set()
         seen_name_paper: set = set()
         seen_hashes: set = set()
-        clean: List[Dict[str, str]] = []
+        clean: list[dict[str, str]] = []
         stats = DuplicateStats(total_parsed=len(records))
 
         for rec in records:
@@ -171,15 +170,15 @@ class DataParser:
         return clean, stats
 
     @classmethod
-    def parse_txt(cls, file_path: str) -> List[Dict[str, str]]:
+    def parse_txt(cls, file_path: str) -> list[dict[str, str]]:
         if not os.path.exists(file_path):
             return []
 
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
         raw_blocks = [b.strip() for b in content.split("\n\n") if b.strip()]
-        records: List[Dict[str, str]] = []
+        records: list[dict[str, str]] = []
 
         for block_idx, block in enumerate(raw_blocks):
             lines = [line.strip() for line in block.split("\n") if line.strip()]
@@ -215,9 +214,9 @@ class DataParser:
         return records
 
     @classmethod
-    def _parse_pipe_block(cls, block_idx: int, lines: List[str]) -> List[Dict[str, str]]:
+    def _parse_pipe_block(cls, block_idx: int, lines: list[str]) -> list[dict[str, str]]:
         """Handle `Name | email | paper title` lines (pipe-separated TXT)."""
-        out: List[Dict[str, str]] = []
+        out: list[dict[str, str]] = []
         for line in lines:
             parts = [p.strip() for p in line.split("|")]
             if len(parts) < 3:
@@ -246,12 +245,12 @@ class DataParser:
         return out
 
     @classmethod
-    def parse_csv(cls, file_path: str) -> List[Dict[str, str]]:
+    def parse_csv(cls, file_path: str) -> list[dict[str, str]]:
         if not os.path.exists(file_path):
             return []
 
-        records: List[Dict[str, str]] = []
-        with open(file_path, mode="r", encoding="utf-8", errors="ignore") as f:
+        records: list[dict[str, str]] = []
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 if "email" in row and "last_name" in row and "paper_title" in row:
@@ -267,17 +266,17 @@ class DataParser:
         return records
 
     @classmethod
-    def parse_json(cls, file_path: str) -> List[Dict[str, str]]:
+    def parse_json(cls, file_path: str) -> list[dict[str, str]]:
         if not os.path.exists(file_path):
             return []
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             try:
                 data = json.load(f)
             except json.JSONDecodeError as e:
                 raise DataParserError(f"JSON parse error: {e}")
 
-        records: List[Dict[str, str]] = []
+        records: list[dict[str, str]] = []
         if isinstance(data, list):
             for item in data:
                 if "email" in item and "last_name" in item and "paper_title" in item:
@@ -292,9 +291,9 @@ class DataParser:
         return records
 
     @classmethod
-    def parse_yaml(cls, file_path: str) -> List[Dict[str, str]]:
+    def parse_yaml(cls, file_path: str) -> list[dict[str, str]]:
         try:
-            import yaml
+            import yaml  # type: ignore[import-untyped]
         except ImportError:
             AppLogger.warn("PyYAML not installed. Skipping YAML parsing.")
             return []
@@ -302,13 +301,13 @@ class DataParser:
         if not os.path.exists(file_path):
             return []
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             try:
                 data = yaml.safe_load(f)
             except Exception as e:
                 raise DataParserError(f"YAML parse error: {e}")
 
-        records: List[Dict[str, str]] = []
+        records: list[dict[str, str]] = []
         if isinstance(data, list):
             for item in data:
                 if isinstance(item, dict) and all(k in item for k in ("email", "last_name", "paper_title")):
@@ -323,7 +322,7 @@ class DataParser:
         return records
 
     @classmethod
-    def parse_xlsx(cls, file_path: str) -> List[Dict[str, str]]:
+    def parse_xlsx(cls, file_path: str) -> list[dict[str, str]]:
         try:
             import openpyxl
         except ImportError:
@@ -344,7 +343,7 @@ class DataParser:
                 return []
 
             header = [str(c).lower() if c else "" for c in rows[0]]
-            records: List[Dict[str, str]] = []
+            records: list[dict[str, str]] = []
 
             for row in rows[1:]:
                 row_data = {header[i]: str(row[i]).strip() if row[i] else "" for i in range(len(row))}

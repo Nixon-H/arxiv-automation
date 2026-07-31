@@ -1,15 +1,15 @@
 import json
-import subprocess
 import platform
-from typing import Any, Dict, Optional
-from urllib.request import Request, urlopen
+import subprocess
+from typing import Any
 from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 from core.logger import AppLogger
 
 
 class Notifier:
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         self.config = config or {}
 
     def send_discord(self, webhook_url: str, message: str) -> bool:
@@ -73,7 +73,7 @@ class Notifier:
         if "slack" in self.config:
             self.send_slack(self.config["slack"], message)
 
-    def send_completion(self, stats: Dict[str, Any]) -> None:
+    def send_completion(self, stats: dict[str, Any]) -> None:
         msg = (
             f"📬 Dispatch Complete\n"
             f"Sent: {stats.get('sent', 0)} | Failed: {stats.get('failed', 0)} | "

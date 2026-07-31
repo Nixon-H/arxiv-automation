@@ -1,26 +1,25 @@
-import os
-import ssl
-import time
-import json
-import random
 import hashlib
+import json
+import os
+import random
 import smtplib
+import ssl
 import threading
-from enum import Enum
-from typing import Dict, Any, List, Optional, Tuple
+import time
 from email.header import Header
-from email.utils import formataddr, make_msgid, formatdate
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
+from email.utils import formataddr, formatdate, make_msgid
+from enum import Enum
+from typing import Any
 
-from core.logger import AppLogger
-from core.database import Database
-from core.ratelimiter import RateLimiter
-from core.dns_validator import validate_email_dns
 from core.config_typed import SMTPAccount
-from core.exceptions import SmtpTransmissionError
-from parsing.bounce import BounceClassifier, SMTP_RESPONSE_MAP
+from core.database import Database
+from core.dns_validator import validate_email_dns
+from core.logger import AppLogger
+from core.ratelimiter import RateLimiter
+from parsing.bounce import SMTP_RESPONSE_MAP, BounceClassifier
 
 
 class SmtpErrorClass(Enum):
@@ -165,7 +164,7 @@ CAPABILITY_LABELS = {
 }
 
 
-def format_capabilities(caps: Dict[str, str]) -> str:
+def format_capabilities(caps: dict[str, str]) -> str:
     parts = []
     for key, label in CAPABILITY_LABELS.items():
         if key in caps:
@@ -180,15 +179,15 @@ def format_capabilities(caps: Dict[str, str]) -> str:
 
 
 class SmtpConnectionPool:
-    def __init__(self, accounts: List[SMTPAccount], timeout: float = 30.0) -> None:
+    def __init__(self, accounts: list[SMTPAccount], timeout: float = 30.0) -> None:
         self.accounts = accounts
         self.timeout = timeout
         self._lock = threading.Lock()
-        self._connections: Dict[str, smtplib.SMTP] = {}
-        self._capabilities: Dict[str, Dict[str, Any]] = {}
+        self._connections: dict[str, smtplib.SMTP] = {}
+        self._capabilities: dict[str, Any] = {}
 
-    def detect_capabilities(self, server: smtplib.SMTP, account_email: str) -> Dict[str, str]:
-        caps: Dict[str, str] = {}
+    def detect_capabilities(self, server: smtplib.SMTP, account_email: str) -> dict[str, str]:
+        caps: dict[str, str] = {}
         for key in CAPABILITY_LABELS:
             val = server.esmtp_features.get(key)
             if val is not None:
@@ -198,18 +197,18 @@ class SmtpConnectionPool:
         AppLogger.info(f"SMTP capabilities [{account_email}]: {fmt}")
         return caps
 
-    def get_account_capabilities(self, account_email: str) -> Dict[str, str]:
+    def get_account_capabilities(self, account_email: str) -> dict[str, str]:
         return self._capabilities.get(account_email, {})
 
     def has_capability(self, account_email: str, capability: str) -> bool:
         caps = self._capabilities.get(account_email, {})
         return capability.lower() in caps
 
-    def all_capabilities(self) -> Dict[str, Dict[str, str]]:
+    def all_capabilities(self) -> dict[str, dict[str, str]]:
         return dict(self._capabilities)
 
-    def _get_cert_info(self, server: smtplib.SMTP) -> Dict[str, Any]:
-        cert_info: Dict[str, Any] = {"valid": False, "issuer": "", "subject": "", "expiry": ""}
+    def _get_cert_info(self, server: smtplib.SMTP) -> dict[str, Any]:
+        cert_info: dict[str, Any] = {"valid": False, "issuer": "", "subject": "", "expiry": ""}
         try:
             sock = server.sock
             if sock:
@@ -233,14 +232,14 @@ class SmtpConnectionPool:
             pass
         return cert_info
 
-    def _connect(self, acct: SMTPAccount) -> Optional[smtplib.SMTP]:
-        phases: Dict[str, int] = {}
+    def _connect(self, acct: SMTPAccount) -> smtplib.SMTP | None:
+        phases: dict[str, int] = {}
         t0 = int(time.time() * 1000)
         try:
             context = ssl.create_default_context()
             server = smtplib.SMTP(timeout=self.timeout)
             banner_code, banner_msg = server.connect(acct.server, acct.port)
-            server._host = acct.server
+            setattr(server, "_host", acct.server)
             phases["smtp_connect"] = int(time.time() * 1000) - t0
 
             # Provider detection from banner
@@ -287,7 +286,7 @@ class SmtpConnectionPool:
             AppLogger.warn(f"SMTP connect failed for {acct.email}: {e}")
             return None
 
-    def get_connection(self, account_idx: int) -> Optional[smtplib.SMTP]:
+    def get_connection(self, account_idx: int) -> smtplib.SMTP | None:
         if account_idx >= len(self.accounts):
             return None
         acct = self.accounts[account_idx]
@@ -320,7 +319,7 @@ class SmtpConnectionPool:
 class SmtpEngine:
     def __init__(
         self,
-        accounts: List[SMTPAccount],
+        accounts: list[SMTPAccount],
         db: Database,
         rate_limiter: RateLimiter,
         timeout: float = 30.0,
@@ -345,12 +344,12 @@ class SmtpEngine:
         subject: str,
         text_content: str,
         html_content: str,
-        attachment_path: Optional[str] = None,
-        reply_to: Optional[str] = None,
-        custom_headers: Optional[Dict[str, str]] = None,
+        attachment_path: str | None = None,
+        reply_to: str | None = None,
+        custom_headers: dict[str, str] | None = None,
         correlation_id: str = "",
-    ) -> Tuple[bool, SmtpErrorClass, int, str, Dict[str, int]]:
-        phases: Dict[str, int] = {}
+    ) -> tuple[bool, SmtpErrorClass, int, str, dict[str, int]]:
+        phases: dict[str, int] = {}
         start_ms = int(time.time() * 1000)
 
         if account_idx >= len(self.accounts):
@@ -364,7 +363,7 @@ class SmtpEngine:
                 str(Header(acct.display_name, "utf-8")), acct.email
             ))
             msg["To"] = recipient_email
-            msg["Subject"] = Header(subject, "utf-8")
+            msg["Subject"] = str(Header(subject, "utf-8"))
             msg["Message-ID"] = make_msgid()
             msg["Date"] = formatdate(localtime=True)
             msg["X-Mailer"] = "ArxivDispatch/5.0"
@@ -417,9 +416,10 @@ class SmtpEngine:
             phases["total"] = latency
             pool_phases = self.pool._capabilities.get(acct.email + "_phases", {})
             phases.update(pool_phases)
-            bounce_type = self.bounce.record(recipient_email, e.smtp_code, str(e))
+            self.bounce.record(recipient_email, e.smtp_code, str(e))
             err_class = classify_smtp_error(e, e.smtp_code)
-            return False, err_class, latency, f"SMTP {e.smtp_code}: {e.smtp_error}", phases
+            err_text = e.smtp_error if isinstance(e.smtp_error, str) else str(e.smtp_error)
+            return False, err_class, latency, f"SMTP {e.smtp_code}: {err_text}", phases
 
         except Exception as e:
             latency = int(time.time() * 1000) - start_ms
@@ -440,9 +440,9 @@ class SmtpEngine:
         text_content: str,
         html_content: str,
         recipient_id: int = 0,
-        attachment_path: Optional[str] = None,
-        reply_to: Optional[str] = None,
-        custom_headers: Optional[Dict[str, str]] = None,
+        attachment_path: str | None = None,
+        reply_to: str | None = None,
+        custom_headers: dict[str, str] | None = None,
         dns_check: bool = True,
         correlation_id: str = "",
     ) -> bool:
@@ -551,7 +551,7 @@ class SmtpEngine:
                 return False
 
             if err_class == SmtpErrorClass.PERMANENT:
-                AppLogger.error(f"Permanent failure — skipping")
+                AppLogger.error("Permanent failure — skipping")
                 return False
 
             if err_class == SmtpErrorClass.RATE_LIMITED:

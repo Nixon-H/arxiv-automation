@@ -1,8 +1,7 @@
 import os
 import random
-import time
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from core.exceptions import TemplateRenderError
 from core.logger import AppLogger
@@ -49,17 +48,17 @@ SIGNATURE_PROFILES = [
 class TemplateEngine:
     def __init__(
         self,
-        txt_paths: Optional[List[str]] = None,
-        html_paths: Optional[List[str]] = None,
+        txt_paths: list[str] | None = None,
+        html_paths: list[str] | None = None,
         auto_reload: bool = True,
     ) -> None:
         self.txt_paths = txt_paths or ["template.txt"]
         self.html_paths = html_paths or ["template.html"]
         self.auto_reload = auto_reload
-        self._txt_cache: List[str] = []
-        self._html_cache: List[str] = []
-        self._txt_mtimes: List[float] = []
-        self._html_mtimes: List[float] = []
+        self._txt_cache: list[str] = []
+        self._html_cache: list[str] = []
+        self._txt_mtimes: list[float] = []
+        self._html_mtimes: list[float] = []
         self._load_templates()
 
     def _load_templates(self) -> None:
@@ -70,7 +69,7 @@ class TemplateEngine:
 
         for path in self.txt_paths:
             if os.path.exists(path):
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     self._txt_cache.append(f.read())
                 self._txt_mtimes.append(os.path.getmtime(path))
             else:
@@ -78,7 +77,7 @@ class TemplateEngine:
 
         for path in self.html_paths:
             if os.path.exists(path):
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     self._html_cache.append(f.read())
                 self._html_mtimes.append(os.path.getmtime(path))
             else:
@@ -114,7 +113,7 @@ class TemplateEngine:
             AppLogger.info("Templates changed on disk — reloading")
             self._load_templates()
 
-    def _interpolate(self, template: str, context: Dict[str, Any]) -> str:
+    def _interpolate(self, template: str, context: dict[str, Any]) -> str:
         result = template
         for key, val in context.items():
             result = result.replace("{{ " + key + " }}", str(val))
@@ -123,7 +122,7 @@ class TemplateEngine:
             result = result.replace("{" + key + "}", str(val))
         return result
 
-    def render_subject(self, context: Dict[str, Any]) -> str:
+    def render_subject(self, context: dict[str, Any]) -> str:
         self._check_reload()
         template = random.choice(SUBJECT_TEMPLATES)
         return self._interpolate(template, context)
@@ -131,7 +130,7 @@ class TemplateEngine:
     def generate_plain_text(self, html_body: str) -> str:
         return strip_html(html_body)
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         self._check_reload()
         return {
             "txt_templates": len(self._txt_cache),
@@ -140,7 +139,7 @@ class TemplateEngine:
             "signatures": len(SIGNATURE_PROFILES),
         }
 
-    def render_text(self, context: Dict[str, Any], variant: Optional[int] = None) -> str:
+    def render_text(self, context: dict[str, Any], variant: int | None = None) -> str:
         self._check_reload()
         if variant is not None and 0 <= variant < len(self._txt_cache):
             idx = variant
@@ -148,14 +147,14 @@ class TemplateEngine:
             idx = random.randrange(len(self._txt_cache))
         return self._interpolate(self._txt_cache[idx], context)
 
-    def render_file(self, path: str, context: Dict[str, Any]) -> str:
+    def render_file(self, path: str, context: dict[str, Any]) -> str:
         """Render an arbitrary template file (e.g. follow-up template)."""
         if not os.path.exists(path):
             raise TemplateRenderError(f"Template file not found: {path}")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return self._interpolate(f.read(), context)
 
-    def render_html(self, context: Dict[str, Any], variant: Optional[int] = None) -> str:
+    def render_html(self, context: dict[str, Any], variant: int | None = None) -> str:
         self._check_reload()
         if variant is not None and 0 <= variant < len(self._html_cache):
             idx = variant
@@ -163,7 +162,7 @@ class TemplateEngine:
             idx = random.randrange(len(self._html_cache))
         return self._interpolate(self._html_cache[idx], context)
 
-    def render_signature(self, context: Dict[str, Any], variant: Optional[int] = None) -> str:
+    def render_signature(self, context: dict[str, Any], variant: int | None = None) -> str:
         if variant is not None and 0 <= variant < len(SIGNATURE_PROFILES):
             idx = variant
         else:
@@ -175,8 +174,8 @@ class TemplateEngine:
             sig += self._interpolate(profile["extra"], context)
         return sig
 
-    def get_required_vars(self) -> List[str]:
-        required: List[str] = []
+    def get_required_vars(self) -> list[str]:
+        required: list[str] = []
         for t in self._txt_cache + self._html_cache:
             required.extend(re.findall(r"\{\{\s*(\w+)\s*\}\}", t))
         for s in SUBJECT_TEMPLATES:
@@ -186,16 +185,16 @@ class TemplateEngine:
                 required.extend(re.findall(r"\{\{\s*(\w+)\s*\}\}", str(v)))
         return sorted(set(required))
 
-    def validate_context(self, context: Dict[str, Any]) -> List[str]:
-        missing: List[str] = []
+    def validate_context(self, context: dict[str, Any]) -> list[str]:
+        missing: list[str] = []
         for var in self.get_required_vars():
             if var not in context or context[var] is None:
                 missing.append(var)
         return missing
 
     def render_all(
-        self, context: Dict[str, Any]
-    ) -> Dict[str, str]:
+        self, context: dict[str, Any]
+    ) -> dict[str, str]:
         return {
             "subject": self.render_subject(context),
             "text_body": self.render_text(context),

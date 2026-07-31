@@ -1,9 +1,8 @@
-import re
 import os
-from typing import Any, Dict, List, Optional, Tuple
+import re
+from typing import Any
 
 from core.logger import AppLogger
-
 
 TEMPLATE_LINT_RULES = [
     (r"  +", "multiple spaces"),
@@ -43,18 +42,18 @@ SPAM_TRIGGER_REGEX = re.compile(
 URL_REGEX = re.compile(r"https?://[^\s<>\"']+|www\.[^\s<>\"']+", re.IGNORECASE)
 
 
-def check_spam_triggers(text: str) -> List[str]:
+def check_spam_triggers(text: str) -> list[str]:
     if not text:
         return []
     return sorted(set(SPAM_TRIGGER_REGEX.findall(text)))
 
 
-def check_spam_score(text: str) -> Tuple[int, List[str]]:
+def check_spam_score(text: str) -> tuple[int, list[str]]:
     triggers = check_spam_triggers(text)
     return len(triggers), triggers
 
 
-def check_missing_subject(subject: Optional[str]) -> Optional[str]:
+def check_missing_subject(subject: str | None) -> str | None:
     if not subject or not subject.strip():
         return "Missing subject line"
     if len(subject.strip()) < 5:
@@ -62,7 +61,7 @@ def check_missing_subject(subject: Optional[str]) -> Optional[str]:
     return None
 
 
-def check_empty_body(text_body: Optional[str], html_body: Optional[str] = None) -> Optional[str]:
+def check_empty_body(text_body: str | None, html_body: str | None = None) -> str | None:
     if text_body and text_body.strip():
         return None
     if html_body and html_body.strip():
@@ -70,9 +69,9 @@ def check_empty_body(text_body: Optional[str], html_body: Optional[str] = None) 
     return "Empty email body"
 
 
-def check_broken_links(text: str) -> List[str]:
+def check_broken_links(text: str) -> list[str]:
     urls = URL_REGEX.findall(text)
-    broken: List[str] = []
+    broken: list[str] = []
     for url in urls:
         if url.startswith("http") and not url.startswith("https"):
             broken.append(f"Insecure URL (no HTTPS): {url}")
@@ -81,15 +80,15 @@ def check_broken_links(text: str) -> List[str]:
     return broken
 
 
-def lint_template(text: str, template_name: str = "template") -> List[str]:
-    issues: List[str] = []
+def lint_template(text: str, template_name: str = "template") -> list[str]:
+    issues: list[str] = []
     lines = text.split("\n")
 
     has_greeting = any(re.search(p, text, re.IGNORECASE) for p in _GREETING_PATTERNS)
     if not has_greeting:
         issues.append("No greeting found (dear/hello/hi)")
 
-    long_lines = sum(1 for l in lines if len(l.strip()) > _LONG_LINE_THRESHOLD)
+    long_lines = sum(1 for line in lines if len(line.strip()) > _LONG_LINE_THRESHOLD)
     if long_lines:
         issues.append(f"{long_lines} line(s) exceed {_LONG_LINE_THRESHOLD} characters")
 
@@ -98,7 +97,7 @@ def lint_template(text: str, template_name: str = "template") -> List[str]:
         if matches:
             issues.append(f"{desc} ({len(matches)} occurrence(s))")
 
-    lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
+    lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
     for line in reversed(lines):
         if line.endswith((".", "!", "?")):
             break
@@ -108,8 +107,8 @@ def lint_template(text: str, template_name: str = "template") -> List[str]:
     return issues
 
 
-def check_html_sanity(html: str) -> List[str]:
-    issues: List[str] = []
+def check_html_sanity(html: str) -> list[str]:
+    issues: list[str] = []
     tags_to_check = ["html", "head", "body", "table", "div", "p", "ul", "ol", "span", "a", "h1", "h2", "h3"]
     for tag in tags_to_check:
         open_count = len(re.findall(rf"<{tag}\b[^>]*>", html, re.IGNORECASE))
@@ -122,15 +121,15 @@ def check_html_sanity(html: str) -> List[str]:
 def compute_email_score(
     subject: str,
     text_body: str,
-    html_body: Optional[str] = None,
+    html_body: str | None = None,
     has_attachment: bool = False,
     spam_count: int = 0,
     broken_link_count: int = 0,
-    lint_issues: Optional[List[str]] = None,
-    html_issues: Optional[List[str]] = None,
-) -> Dict[str, Any]:
+    lint_issues: list[str] | None = None,
+    html_issues: list[str] | None = None,
+) -> dict[str, Any]:
     score = 100
-    deductions: List[str] = []
+    deductions: list[str] = []
 
     if not subject or len(subject.strip()) < 5:
         score -= 20
@@ -201,10 +200,10 @@ def check_attachment_valid(pdf_path: str) -> bool:
 def run_email_quality_checks(
     subject: str,
     text_body: str,
-    html_body: Optional[str] = None,
-    pdf_path: Optional[str] = None,
-) -> Dict[str, any]:
-    warnings: List[str] = []
+    html_body: str | None = None,
+    pdf_path: str | None = None,
+) -> dict[str, Any]:
+    warnings: list[str] = []
     spam_count, spam_found = check_spam_score(subject + " " + text_body)
 
     missing_subj = check_missing_subject(subject)

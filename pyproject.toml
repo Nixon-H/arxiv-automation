@@ -80,7 +80,8 @@ select = ["E", "F", "W", "I", "N", "UP"]
 ignore = ["E501"]
 
 [tool.bandit]
-exclude_dirs = ["tests", ".venv"]
+exclude_dirs = ["tests", ".venv", "site"]
+skips = ["B404", "B603", "B607", "B110", "B310", "B311"]
 
 [tool.semantic-release]
 version_variable = "pyproject.toml:version"

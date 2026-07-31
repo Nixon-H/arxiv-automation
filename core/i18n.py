@@ -1,14 +1,13 @@
-import os
 import json
-from typing import Dict, Optional
+import os
 
 
 class Translator:
     def __init__(self, locale: str = "en", locales_dir: str = "locales") -> None:
         self.locale = locale
         self.locales_dir = locales_dir
-        self._strings: Dict[str, str] = {}
-        self._fallback: Dict[str, str] = {}
+        self._strings: dict[str, str] = {}
+        self._fallback: dict[str, str] = {}
         self._load()
 
     def _load(self) -> None:
@@ -18,10 +17,10 @@ class Translator:
         else:
             self._strings = dict(self._fallback)
 
-    def _load_file(self, locale: str) -> Dict[str, str]:
+    def _load_file(self, locale: str) -> dict[str, str]:
         path = os.path.join(self.locales_dir, f"{locale}.json")
         if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
         return {}
 
