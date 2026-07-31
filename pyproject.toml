@@ -8,7 +8,7 @@ version = "5.1.0"
 description = "Production-grade automated email dispatch for arXiv endorsement outreach"
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "Nixon-H", email = "aditya@example.com" }]
+authors = [{ name = "Nixon-H", email = "Nixon-HByte@proton.me" }]
 keywords = ["arxiv", "endorsement", "email", "automation", "outreach"]
 classifiers = [
     "Development Status :: 4 - Beta",
