@@ -73,6 +73,10 @@ Examples:
                         help="Locale for i18n (en, fr, zh, etc.)")
     parser.add_argument("--no-browser", action="store_true",
                         help="Do not open browser for preview (used with --dry-run)")
+    parser.add_argument("--template", type=str, default="",
+                        help="Template set name (e.g. 'citation' → template_citation.txt/.html); default: template.txt/.html")
+    parser.add_argument("--contacts", type=str, default="",
+                        help="Endorser list file to use instead of auto-detected endorsers.txt (e.g. endorsers_transformer.txt)")
 
     return parser
 

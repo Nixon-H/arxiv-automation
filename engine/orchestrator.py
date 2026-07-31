@@ -40,7 +40,14 @@ class OrchestrationRunner:
         self.db = Database.get_instance()
         self.lock = FileLock()
         self.rate_limiter = RateLimiter(self.db)
-        self.templates = TemplateEngine()
+        template_name = getattr(cli_args, "template", "") or ""
+        if template_name:
+            self.templates = TemplateEngine(
+                txt_paths=[f"template_{template_name}.txt"],
+                html_paths=[f"template_{template_name}.html"],
+            )
+        else:
+            self.templates = TemplateEngine()
         self.plugins = PluginManager()
         self.i18n = Translator(locale=cli_args.locale if hasattr(cli_args, 'locale') and cli_args.locale else 'en')
         self.notifier = Notifier(self.config.notifications)
@@ -154,10 +161,26 @@ class OrchestrationRunner:
 
         # Identify input file
         input_file = None
-        for candidate in ["endorsers.txt", "endorsers.csv", "endorsers.json", "endorsers.yaml", "endorsers.xlsx"]:
-            if os.path.exists(candidate):
-                input_file = candidate
-                break
+        contacts_override = getattr(self.args, "contacts", "") or ""
+        if self.args.dry_run and contacts_override:
+            for candidate in ["endorsers.txt", "endorsers.csv", "endorsers.json", "endorsers.yaml", "endorsers.xlsx"]:
+                if os.path.exists(candidate):
+                    input_file = candidate
+                    break
+            if not input_file:
+                input_file = contacts_override
+        else:
+            if contacts_override:
+                if os.path.exists(contacts_override):
+                    input_file = contacts_override
+                else:
+                    AppLogger.error(f"Contacts file not found: {contacts_override}")
+                    return
+            if not input_file:
+                for candidate in ["endorsers.txt", "endorsers.csv", "endorsers.json", "endorsers.yaml", "endorsers.xlsx"]:
+                    if os.path.exists(candidate):
+                        input_file = candidate
+                        break
 
         if not input_file:
             self._create_sample_endorsers()
@@ -187,9 +210,11 @@ class OrchestrationRunner:
             idx = self.db.get_progress_index()
             if idx < len(records):
                 self.dry_run_single(records, idx)
-                self.generate_preview_html(records)
-            else:
-                AppLogger.success(f"All {len(records)} records processed.")
+            extra_records: list[dict[str, str]] = []
+            if contacts_override and contacts_override != input_file:
+                extra_records, _ = DataParser.auto_detect_with_stats(contacts_override)
+                AppLogger.info(f"Preview also includes {len(extra_records)} records from {contacts_override} (template 2)")
+            self.generate_preview_html(records, template2_records=extra_records)
             return
 
         if self.args.test:
@@ -616,10 +641,19 @@ class OrchestrationRunner:
             f.write(systemd_timer.strip() + "\n")
         AppLogger.success("Scheduler files written to scheduler/")
 
-    def generate_preview_html(self, records: list[dict[str, str]]) -> None:
+    def generate_preview_html(self, records: list[dict[str, str]], template2_records: list[dict[str, str]] | None = None) -> None:
+        template2_records = template2_records or []
+        t2_engine = None
+        if template2_records:
+            from engine.templates import TemplateEngine as TemplateEngineCls
+            t2_engine = TemplateEngineCls(txt_paths=["template_citation.txt"], html_paths=["template_citation.html"])
+
         html_parts = []
         idx = self.db.get_progress_index()
-        for i, rec in enumerate(records):
+        card_id = 0
+
+        def _card(tnum: int, rec: dict[str, str], engine: TemplateEngine, state: str, status: str) -> None:
+            nonlocal card_id
             ctx = {
                 "last_name": rec["last_name"],
                 "title": rec.get("title", ""),
@@ -629,23 +663,41 @@ class OrchestrationRunner:
                 "your_paper_title": self.identity["your_paper_title"],
                 "arxiv_category": self.identity["arxiv_category"],
             }
-            rendered = self.templates.render_all(ctx)
-            status = "✓ NEXT" if i == idx else ("✓ DONE" if i < idx else "—")
-            state = "next" if i == idx else ("done" if i < idx else "pending")
+            rendered = engine.render_all(ctx)
             initial = (rec['last_name'][0].upper() if rec['last_name'] else '?')
             html_parts.append(f"""\
-        <article class="email-card {state}" data-state="{state}" data-name="{rec['last_name'].lower()}" data-email="{rec['email'].lower()}">
+        <article class="email-card {state}" data-state="{state}" data-template="{tnum}" data-name="{rec['last_name'].lower()}" data-email="{rec['email'].lower()}">
           <header class="card-head">
             <span class="status-badge {state}">{status}</span>
+            <span class="tpl-badge" title="Template {tnum}">T{tnum}</span>
             <h3>{rec['last_name']}</h3>
             <span class="avatar">{initial}.</span>
-            <button class="copy-btn" data-idx="{i}" title="Copy email body">⧉ Copy</button>
+            <button class="copy-btn" data-idx="{card_id}" title="Copy email body">⧉ Copy</button>
           </header>
           <p class="meta"><span class="lbl">To</span> <a class="mailto" href="mailto:{rec['email']}">{rec['email']}</a> <span class="lbl">Paper</span> {rec['paper_title']}</p>
           <p class="meta"><span class="lbl">Subject</span> {rendered['subject']}</p>
-          <div class="body-preview" id="body-{i}">{rendered['text_body']}</div>
+          <div class="body-preview" id="body-{card_id}">{rendered['text_body']}</div>
         </article>""")
+            card_id += 1
 
+        for i, rec in enumerate(records):
+            status = "✓ NEXT" if i == idx else ("✓ DONE" if i < idx else "—")
+            state = "next" if i == idx else ("done" if i < idx else "pending")
+            _card(1, rec, self.templates, state, status)
+        for rec in template2_records:
+            assert t2_engine is not None
+            _card(2, rec, t2_engine, "pending", "—")
+
+        template_btns = ""
+        template_counts = ""
+        if template2_records:
+            btns = ['<button class="fbtn tbtn active" data-tfilter="all" onclick="setTFilter(this)">All Templates</button>']
+            btns.append(f'<button class="fbtn tbtn" data-tfilter="1" onclick="setTFilter(this)">Template 1 ({len(records)})</button>')
+            btns.append(f'<button class="fbtn tbtn" data-tfilter="2" onclick="setTFilter(this)">Template 2 ({len(template2_records)})</button>')
+            template_btns = "".join(btns)
+            template_counts = f'<span>Template 1 <strong>{len(records)}</strong></span><span>Template 2 <strong>{len(template2_records)}</strong></span>'
+
+        total = len(records) + len(template2_records)
         preview_html = f"""\
 <!DOCTYPE html>
 <html lang="en" class="dark">
@@ -710,6 +762,8 @@ class OrchestrationRunner:
   .status-badge.pending {{ color:var(--text-faint); }}
   .status-badge.next {{ color:var(--gold); }}
   .status-badge.done {{ color:var(--green); }}
+  .tpl-badge {{ display:inline-block; margin-left:6px; font:600 9.5px var(--mono);
+                letter-spacing:.1em; text-transform:uppercase; color:var(--blue); }}
   .meta {{ color:var(--text-dim); font-size:12.5px; font-family:var(--mono);
            margin-bottom:6px; overflow-wrap:anywhere; }}
   .meta .lbl {{ color:var(--text-faint); font-size:9.5px; letter-spacing:.1em; margin-right:8px; }}
@@ -751,19 +805,21 @@ class OrchestrationRunner:
   <h1><span class="mark">✦</span> arXiv Dispatch <span class="mark">/</span> Preview</h1>
   <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()">🌙 Dark</button>
 </header>
-<p class="sub">OUTBOX — {len(records)} endorser{'' if len(records) == 1 else 's'} loaded · {idx} dispatched</p>
+<p class="sub">OUTBOX — {total} endorsers loaded · {idx} dispatched · templates: 1 default · 2 citation</p>
 <div class="toolbar">
   <button class="fbtn active" data-filter="all" onclick="setFilter(this)">All</button>
   <button class="fbtn" data-filter="pending" onclick="setFilter(this)">Pending</button>
   <button class="fbtn" data-filter="next" onclick="setFilter(this)">Next</button>
   <button class="fbtn" data-filter="done" onclick="setFilter(this)">Done</button>
+  {template_btns}
   <input class="search" id="search" type="search" placeholder="Search name, email, paper…" oninput="applyFilter()">
 </div>
 <div class="summary">
-  <span>Total <strong>{len(records)}</strong></span>
-  <span>Pending <strong>{len(records) - idx}</strong></span>
+  <span>Total <strong>{total}</strong></span>
+  <span>Pending <strong>{total - idx}</strong></span>
   <span>Done <strong>{idx}</strong></span>
   <span class="next">Next <strong>#{idx + 1}</strong></span>
+  {template_counts}
 </div>
 {''.join(html_parts)}
 <p class="empty" id="empty">No matches.</p>
@@ -784,9 +840,10 @@ class OrchestrationRunner:
     if (saved === 'light') {{ toggleTheme(); }}
   }} catch(e) {{}}
   var currentFilter = 'all';
-  function setFilter(btn) {{
-    currentFilter = btn.dataset.filter;
-    document.querySelectorAll('.fbtn').forEach(function(b) {{ b.classList.toggle('active', b === btn); }});
+  var currentTFilter = 'all';
+  function setTFilter(btn) {{
+    currentTFilter = btn.dataset.tfilter;
+    document.querySelectorAll('.tbtn').forEach(function(b) {{ b.classList.toggle('active', b === btn); }});
     applyFilter();
   }}
   function applyFilter() {{
@@ -795,6 +852,9 @@ class OrchestrationRunner:
     var visible = 0;
     cards.forEach(function(card) {{
       var show = currentFilter === 'all' || card.dataset.state === currentFilter;
+      if (currentTFilter !== 'all') {{
+        show = show && card.dataset.template === currentTFilter;
+      }}
       if (show && q) {{
         show = (card.dataset.name + ' ' + card.dataset.email + ' ' + card.textContent.toLowerCase()).indexOf(q) !== -1;
       }}

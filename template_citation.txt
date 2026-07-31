@@ -1,0 +1,16 @@
+Respected {{ greeting }},
+
+I hope this email finds you well.
+
+My name is {{ your_name }}, and I am an independent researcher. I have recently completed an academic paper titled "{{ your_paper_title }}", which I am preparing to submit to arXiv under the {{ arxiv_category }} category.
+
+Your paper "{{ paper_title }}" is cited in my work: the section of my paper covering this topic builds directly on your citation, which is why I thought of reaching out to you first.
+
+Because I am submitting as an independent author without an institutional affiliation, arXiv requires an endorsement to verify my contribution. If you would be open to considering my work, I would be very grateful. Please do let me know if you are willing to endorse or if you have any requirements to endorse.
+
+Thank you very much for your time, support, and consideration.
+
+Best regards,
+
+{{ your_name }}
+Independent Researcher
