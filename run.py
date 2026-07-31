@@ -77,6 +77,8 @@ Examples:
                         help="Template set name (e.g. 'citation' → template_citation.txt/.html); default: template.txt/.html")
     parser.add_argument("--contacts", type=str, default="",
                         help="Endorser list file to use instead of auto-detected endorsers.txt (e.g. endorsers_transformer.txt)")
+    parser.add_argument("--group", action="append", default=[], metavar="FILE:TEMPLATE",
+                        help="Extra dispatch group: endorser file + template set name, e.g. --group endorsers_transformer.txt:citation; repeatable for 1, 2, 3+ templates")
 
     return parser
 

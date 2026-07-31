@@ -160,6 +160,7 @@ class OrchestrationRunner:
                 )
 
         # Identify input file
+        template_name = getattr(self.args, "template", "") or ""
         input_file = None
         contacts_override = getattr(self.args, "contacts", "") or ""
         if self.args.dry_run and contacts_override:
@@ -207,27 +208,24 @@ class OrchestrationRunner:
             self.db.upsert_recipient(rec["last_name"], rec["email"], rec["paper_title"], email_hash)
 
         if self.args.dry_run:
-            idx = self.db.get_progress_index()
-            if idx < len(records):
-                self.dry_run_single(records, idx)
-            extra_records: list[dict[str, str]] = []
-            if contacts_override and contacts_override != input_file:
-                extra_records, _ = DataParser.auto_detect_with_stats(contacts_override)
-                AppLogger.info(f"Preview also includes {len(extra_records)} records from {contacts_override} (template 2)")
-            self.generate_preview_html(records, template2_records=extra_records)
+            groups = self._build_groups(input_file, records, template_name)
+            for g in groups:
+                if g["tnum"] == 1:
+                    g["idx"] = self.db.get_progress_index()
+                else:
+                    g["idx"] = int(self.db.get_meta(f"current_index_g{g['tnum']}", "0") or "0")
+                if g["idx"] < len(g["records"]):
+                    AppLogger.info(f"--- DRY RUN: Template {g['tnum']} ({g['label']}) ---")
+                    self.dry_run_single(g["records"], g["idx"], engine=g["engine"])
+            self.generate_preview_html(groups)
             return
 
         if self.args.test:
             self.run_test_mode(records)
             return
 
-        # Live mode
-        idx = self.db.get_progress_index()
-        if idx >= len(records):
-            AppLogger.success(f"All {len(records)} records processed.")
-            self.print_stats()
-            self.notifier.send_completion(self.stats)
-            return
+        # Live mode — build all dispatch groups (primary + --group extras)
+        groups = self._build_groups(input_file, records, template_name)
 
         # Cooldown check
         last_send = self.db.get_last_send()
@@ -245,25 +243,7 @@ class OrchestrationRunner:
                 self.lock.release()
                 return
 
-        # Resume prompt
-        if idx > 0:
-            total_sent = self.stats["sent"]
-            print(f"  Progress: {idx}/{len(records)} records processed ({total_sent} sent)")
-            print(f"  Resume from #{idx + 1}? [Enter=yes, n=restart from 0]: ", end="", flush=True)
-            try:
-                resp = input().strip().lower()
-                if resp == "n":
-                    self.db.set_progress_index(0)
-                    idx = 0
-                    self.stats["sent"] = 0
-                    self.stats["failed"] = 0
-                    AppLogger.info("Restarting from record #0")
-            except (EOFError, KeyboardInterrupt):
-                pass
-
         send_n = self.args.send_n or 1
-        end = min(idx + send_n, len(records))
-        total_to_send = end - idx
         success_count = 0
         progress_width = 30
 
@@ -272,26 +252,111 @@ class OrchestrationRunner:
             bar = "█" * filled + "░" * (progress_width - filled)
             return f"[{bar}] {done}/{total}"
 
-        for i in range(idx, end):
-            progress_bar = _render_progress(i - idx, total_to_send)
-            AppLogger.info(f"Progress {progress_bar} — sending #{i + 1}")
-            ok = self.live_send(records, i)
-            if ok:
-                success_count += 1
-                self.db.set_progress_index(i + 1)
-                self.archive_sent_email(records[i])
-                # Delay between sends
-                d_range = self.limits.get("random_delay_range_seconds", [5, 15])
-                delay = random.uniform(d_range[0], d_range[1])
-                AppLogger.info(f"Delay {delay:.1f}s before next...")
-                time.sleep(delay)
+        for g in groups:
+            g_records = g["records"]
+            if g["tnum"] == 1:
+                idx = self.db.get_progress_index()
             else:
-                self.db.set_progress_index(i)
-                break
+                idx = int(self.db.get_meta(f"current_index_g{g['tnum']}", "0") or "0")
+            g["idx"] = idx
+
+            if idx >= len(g_records):
+                AppLogger.success(f"Template {g['tnum']} ({g['label']}): all {len(g_records)} records processed.")
+                continue
+
+            # Resume prompt
+            if idx > 0:
+                total_sent = self.stats["sent"]
+                print(f"  Template {g['tnum']} ({g['label']}) — Progress: {idx}/{len(g_records)} records processed ({total_sent} sent)")
+                print(f"  Resume from #{idx + 1}? [Enter=yes, n=restart from 0]: ", end="", flush=True)
+                try:
+                    resp = input().strip().lower()
+                    if resp == "n":
+                        if g["tnum"] == 1:
+                            self.db.set_progress_index(0)
+                        else:
+                            self.db.set_meta(f"current_index_g{g['tnum']}", "0")
+                        idx = 0
+                        g["idx"] = 0
+                        self.stats["sent"] = 0
+                        self.stats["failed"] = 0
+                        AppLogger.info("Restarting from record #0")
+                except (EOFError, KeyboardInterrupt):
+                    pass
+
+            end = min(idx + send_n, len(g_records))
+            total_to_send = end - idx
+            for i in range(idx, end):
+                progress_bar = _render_progress(i - idx, total_to_send)
+                AppLogger.info(f"Progress {progress_bar} — T{g['tnum']} sending #{i + 1}")
+                ok = self.live_send(g_records, i, engine=g["engine"], gkey=f"g{g['tnum']}" if g["tnum"] != 1 else None)
+                if ok:
+                    success_count += 1
+                    if g["tnum"] == 1:
+                        self.db.set_progress_index(i + 1)
+                    else:
+                        self.db.set_meta(f"current_index_g{g['tnum']}", str(i + 1))
+                    self.archive_sent_email(g_records[i])
+                    # Delay between sends
+                    d_range = self.limits.get("random_delay_range_seconds", [5, 15])
+                    delay = random.uniform(d_range[0], d_range[1])
+                    AppLogger.info(f"Delay {delay:.1f}s before next...")
+                    time.sleep(delay)
+                else:
+                    if g["tnum"] == 1:
+                        self.db.set_progress_index(i)
+                    else:
+                        self.db.set_meta(f"current_index_g{g['tnum']}", str(i))
+                    break
 
         self.print_stats()
         self.notifier.send_completion(self.stats)
         self.lock.release()
+
+    def _build_groups(self, input_file: str, primary_records: list[dict[str, str]], primary_template: str) -> list[dict[str, Any]]:
+        groups: list[dict[str, Any]] = [
+            {
+                "tnum": 1,
+                "label": primary_template or "default",
+                "file": input_file,
+                "engine": self.templates,
+                "records": primary_records,
+                "idx": 0,
+            }
+        ]
+        for spec in getattr(self.args, "group", []) or []:
+            if ":" in spec:
+                file_part, tpl = spec.rsplit(":", 1)
+                file_part = file_part.strip()
+                tpl = tpl.strip()
+            else:
+                file_part, tpl = spec.strip(), ""
+            if not file_part or not os.path.exists(file_part):
+                AppLogger.error(f"Group file not found: {file_part}")
+                continue
+            g_records, _ = DataParser.auto_detect_with_stats(file_part)
+            if not g_records:
+                AppLogger.error(f"No valid records parsed from group file {file_part}")
+                continue
+            for rec in g_records:
+                email_hash = generate_sha256(rec["email"])
+                self.db.upsert_recipient(rec["last_name"], rec["email"], rec["paper_title"], email_hash)
+            engine = TemplateEngine(
+                txt_paths=[f"template_{tpl}.txt"],
+                html_paths=[f"template_{tpl}.html"],
+            ) if tpl else TemplateEngine()
+            tnum = len(groups) + 1
+            groups.append(
+                {
+                    "tnum": tnum,
+                    "label": tpl or "default",
+                    "file": file_part,
+                    "engine": engine,
+                    "records": g_records,
+                    "idx": 0,
+                }
+            )
+        return groups
 
     def _create_sample_endorsers(self) -> None:
         sample = (
@@ -385,7 +450,8 @@ class OrchestrationRunner:
             return f"{title} {last_name}"
         return last_name
 
-    def dry_run_single(self, records: list[dict[str, str]], idx: int) -> None:
+    def dry_run_single(self, records: list[dict[str, str]], idx: int, engine: TemplateEngine | None = None) -> None:
+        engine = engine or self.templates
         target = records[idx]
         context = {
             "last_name": target["last_name"],
@@ -396,7 +462,7 @@ class OrchestrationRunner:
             "your_paper_title": self.identity["your_paper_title"],
             "arxiv_category": self.identity["arxiv_category"],
         }
-        rendered = self.templates.render_all(context)
+        rendered = engine.render_all(context)
         AppLogger.info(f"--- DRY RUN: Record #{idx} ---")
         print(f"  To: {target['last_name']} <{target['email']}>")
         print(f"  Subject: {rendered['subject']}")
@@ -458,21 +524,28 @@ class OrchestrationRunner:
         else:
             AppLogger.error(f"Test failed: {err_class.value}: {err_msg}")
 
-    def live_send(self, records: list[dict[str, str]], idx: int) -> bool:
+    def live_send(self, records: list[dict[str, str]], idx: int, engine: TemplateEngine | None = None, gkey: str | None = None) -> bool:
+        engine = engine or self.templates
         target = records[idx]
         email = target["email"]
         email_hash = generate_sha256(email)
 
+        def _advance(new_idx: int) -> None:
+            if gkey:
+                self.db.set_meta(f"current_index_{gkey}", str(new_idx))
+            else:
+                self.db.set_progress_index(new_idx)
+
         if not validate_email_format(email):
             AppLogger.warn(f"Invalid email at {idx}: '{email}'")
             self.stats["skipped"] += 1
-            self.db.set_progress_index(idx + 1)
+            _advance(idx + 1)
             return True
 
         if self.db.is_email_sent(email_hash):
             AppLogger.warn(f"Duplicate at {idx}: {email}")
             self.stats["duplicates"] += 1
-            self.db.set_progress_index(idx + 1)
+            _advance(idx + 1)
             return True
 
         recipient_id = self.db.upsert_recipient(target["last_name"], email, target["paper_title"], email_hash)
@@ -490,12 +563,12 @@ class OrchestrationRunner:
         }
 
         self.plugins.run_before_send(context)
-        rendered = self.templates.render_all(context)
+        rendered = engine.render_all(context)
         pdf_path = "my_paper.pdf"
         attach_pdf = bool(self.limits.get("attach_pdf", False)) and os.path.exists(pdf_path)
 
         # Render validation
-        missing_vars = self.templates.validate_context(context)
+        missing_vars = engine.validate_context(context)
         if missing_vars:
             AppLogger.warn(f"Template missing variables: {missing_vars}")
 
@@ -641,15 +714,8 @@ class OrchestrationRunner:
             f.write(systemd_timer.strip() + "\n")
         AppLogger.success("Scheduler files written to scheduler/")
 
-    def generate_preview_html(self, records: list[dict[str, str]], template2_records: list[dict[str, str]] | None = None) -> None:
-        template2_records = template2_records or []
-        t2_engine = None
-        if template2_records:
-            from engine.templates import TemplateEngine as TemplateEngineCls
-            t2_engine = TemplateEngineCls(txt_paths=["template_citation.txt"], html_paths=["template_citation.html"])
-
+    def generate_preview_html(self, groups: list[dict[str, Any]]) -> None:
         html_parts = []
-        idx = self.db.get_progress_index()
         card_id = 0
 
         def _card(tnum: int, rec: dict[str, str], engine: TemplateEngine, state: str, status: str) -> None:
@@ -680,24 +746,31 @@ class OrchestrationRunner:
         </article>""")
             card_id += 1
 
-        for i, rec in enumerate(records):
-            status = "✓ NEXT" if i == idx else ("✓ DONE" if i < idx else "—")
-            state = "next" if i == idx else ("done" if i < idx else "pending")
-            _card(1, rec, self.templates, state, status)
-        for rec in template2_records:
-            assert t2_engine is not None
-            _card(2, rec, t2_engine, "pending", "—")
+        total = 0
+        total_done = 0
+        for g in groups:
+            g_idx = g["idx"]
+            total += len(g["records"])
+            total_done += min(g_idx, len(g["records"]))
+            for i, rec in enumerate(g["records"]):
+                status = "✓ NEXT" if i == g_idx else ("✓ DONE" if i < g_idx else "—")
+                state = "next" if i == g_idx else ("done" if i < g_idx else "pending")
+                _card(g["tnum"], rec, g["engine"], state, status)
 
+        multi = len(groups) > 1
         template_btns = ""
         template_counts = ""
-        if template2_records:
+        tpl_labels = []
+        if multi:
             btns = ['<button class="fbtn tbtn active" data-tfilter="all" onclick="setTFilter(this)">All Templates</button>']
-            btns.append(f'<button class="fbtn tbtn" data-tfilter="1" onclick="setTFilter(this)">Template 1 ({len(records)})</button>')
-            btns.append(f'<button class="fbtn tbtn" data-tfilter="2" onclick="setTFilter(this)">Template 2 ({len(template2_records)})</button>')
+            for g in groups:
+                btns.append(f'<button class="fbtn tbtn" data-tfilter="{g["tnum"]}" onclick="setTFilter(this)">Template {g["tnum"]} ({len(g["records"])})</button>')
+                template_counts += f'<span>Template {g["tnum"]} <strong>{len(g["records"])}</strong></span>'
+                tpl_labels.append(f'{g["tnum"]} {g["label"]}')
             template_btns = "".join(btns)
-            template_counts = f'<span>Template 1 <strong>{len(records)}</strong></span><span>Template 2 <strong>{len(template2_records)}</strong></span>'
 
-        total = len(records) + len(template2_records)
+        tpl_line = " · ".join(tpl_labels) if tpl_labels else "1 default"
+        next_idx = groups[0]["idx"] + 1 if groups else 1
         preview_html = f"""\
 <!DOCTYPE html>
 <html lang="en" class="dark">
@@ -805,7 +878,7 @@ class OrchestrationRunner:
   <h1><span class="mark">✦</span> arXiv Dispatch <span class="mark">/</span> Preview</h1>
   <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()">🌙 Dark</button>
 </header>
-<p class="sub">OUTBOX — {total} endorsers loaded · {idx} dispatched · templates: 1 default · 2 citation</p>
+<p class="sub">OUTBOX — {total} endorsers loaded · {total_done} dispatched · templates: {tpl_line}</p>
 <div class="toolbar">
   <button class="fbtn active" data-filter="all" onclick="setFilter(this)">All</button>
   <button class="fbtn" data-filter="pending" onclick="setFilter(this)">Pending</button>
@@ -816,9 +889,9 @@ class OrchestrationRunner:
 </div>
 <div class="summary">
   <span>Total <strong>{total}</strong></span>
-  <span>Pending <strong>{total - idx}</strong></span>
-  <span>Done <strong>{idx}</strong></span>
-  <span class="next">Next <strong>#{idx + 1}</strong></span>
+  <span>Pending <strong>{total - total_done}</strong></span>
+  <span>Done <strong>{total_done}</strong></span>
+  <span class="next">Next <strong>#{next_idx}</strong></span>
   {template_counts}
 </div>
 {''.join(html_parts)}
