@@ -7,13 +7,13 @@ name = "arxiv-automation"
 version = "5.1.0"
 description = "Production-grade automated email dispatch for arXiv endorsement outreach"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Nixon-H", email = "Nixon-HByte@proton.me" }]
 keywords = ["arxiv", "endorsement", "email", "automation", "outreach"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -46,9 +46,9 @@ dev = [
 all = ["pyyaml>=6.0", "openpyxl>=3.1", "dnspython>=2.4"]
 
 [project.urls]
-Homepage = "https://github.com/anomalyco/arxiv-automation"
-Documentation = "https://github.com/anomalyco/arxiv-automation#readme"
-Issues = "https://github.com/anomalyco/arxiv-automation/issues"
+Homepage = "https://github.com/Nixon-H/arxiv-automation"
+Documentation = "https://nixon-h.github.io/arxiv-automation/"
+Issues = "https://github.com/Nixon-H/arxiv-automation/issues"
 
 [project.scripts]
 arxiv-mail = "run:main"
@@ -57,6 +57,10 @@ arxiv-mail = "run:main"
 where = ["."]
 include = ["core*", "engine*", "parsing*", "exports*"]
 exclude = ["tests*"]
+
+[tool.setuptools]
+include-package-data = true
+py-modules = ["run"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
