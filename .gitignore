@@ -9,7 +9,9 @@ data/
 logs/
 
 # Reports
-exports/
+exports/*
+!exports/__init__.py
+!exports/report.py
 
 # Generated artifacts
 sent/
