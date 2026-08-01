@@ -14,6 +14,7 @@ Only the SMTP socket layer goes through Tor; DNS/HTTPS use the normal path.
 """
 
 import json
+import os
 import random
 import socket
 import string
@@ -24,10 +25,23 @@ import urllib.request
 import socks
 
 TOR_SOCKS_HOST = "127.0.0.1"
-TOR_SOCKS_PORT = 9050
+TOR_SOCKS_PORT = int(os.environ.get("BOUNCE_TOR_SOCKS_PORT", "9060"))
+TOR_CONTROL_PORT = int(os.environ.get("BOUNCE_TOR_CONTROL_PORT", "9061"))
 SMTP_PORT = 25
 TIMEOUT = 20
 _ORIGINAL_CREATE = socket.create_connection
+
+
+def new_identity() -> bool:
+    """Ask Tor for a fresh circuit (NEWNYM) via the control port."""
+    try:
+        s = socket.create_connection(("127.0.0.1", TOR_CONTROL_PORT), timeout=3)
+        s.sendall(b"AUTHENTICATE\r\nSIGNAL NEWNYM\r\n")
+        time.sleep(0.4)
+        s.close()
+        return True
+    except Exception:
+        return False
 
 
 def get_mx(domain: str) -> list[str]:
@@ -113,8 +127,12 @@ def _random_local() -> str:
     return "".join(random.choices(string.ascii_lowercase, k=12))
 
 
-def check_email(email: str) -> tuple[str, str]:
-    """Return (verdict, detail). Verdicts: VALID/INVALID/UNKNOWN/CATCHALL."""
+def check_email(email: str, max_rotations: int = 3) -> tuple[str, str]:
+    """Return (verdict, detail). Verdicts: VALID/INVALID/UNKNOWN/CATCHALL.
+
+    UNKNOWN verdicts are retried up to max_rotations times, rotating to a
+    fresh Tor circuit (NEWNYM) each round to dodge Spamhaus-blocked exits.
+    """
     domain = email.rsplit("@", 1)[1]
     if not bootstrap_tor():
         return "UNKNOWN", "tor unavailable"
@@ -122,24 +140,33 @@ def check_email(email: str) -> tuple[str, str]:
     if not mxs:
         return "INVALID", "no MX records for domain"
     sender = "bouncecheck@example.com"
-    catchall_result = _rcpt(mxs[0], sender, f"{_random_local()}@{domain}")
-    catchall_code = catchall_result[0] if catchall_result else None
-    if catchall_code == 250:
-        return "CATCHALL", f"domain accepts any local part ({mxs[0]})"
-    for mx in mxs:
-        result = _rcpt(mx, sender, email)
-        if result is None:
-            continue
-        code, detail = result
-        if code == 250:
-            return "VALID", f"mailbox exists ({mx})"
-        if code >= 500:
-            low = detail.lower()
-            if "blocked" in low or "spamhaus" in low or "rejected" in low or "5.7.1" in low or "policy" in low or "reputation" in low:
-                return "UNKNOWN", f"{code} {detail.strip()[:80]} (IP reputation — retry via different exit)"
-            if code in (551, 553):
-                return "INVALID", f"{code} {detail.strip()[:80]}"
-            if code == 550 and ("5.1.1" in low or "5.2.1" in low or "5.1.10" in low or "does not exist" in low or "user unknown" in low or "mailbox unavailable" in low):
-                return "INVALID", f"{code} {detail.strip()[:80]}"
-            return "UNKNOWN", f"{code} {detail.strip()[:80]} (protocol/policy — inconclusive)"
+    for attempt in range(max_rotations + 1):
+        catchall_result = _rcpt(mxs[0], sender, f"{_random_local()}@{domain}")
+        catchall_code = catchall_result[0] if catchall_result else None
+        if catchall_code == 250:
+            return "CATCHALL", f"domain accepts any local part ({mxs[0]})"
+        for mx in mxs:
+            result = _rcpt(mx, sender, email)
+            if result is None:
+                continue
+            code, detail = result
+            if code == 250:
+                return "VALID", f"mailbox exists ({mx})"
+            if code >= 500:
+                low = detail.lower()
+                if "blocked" in low or "spamhaus" in low or "rejected" in low or "5.7.1" in low or "policy" in low or "reputation" in low:
+                    if attempt < max_rotations:
+                        new_identity()
+                        time.sleep(1)
+                        break
+                    return "UNKNOWN", f"{code} {detail.strip()[:80]} (IP reputation — exit rotated {attempt}x)"
+                if code in (551, 553):
+                    return "INVALID", f"{code} {detail.strip()[:80]}"
+                if code == 550 and ("5.1.1" in low or "5.2.1" in low or "5.1.10" in low or "does not exist" in low or "user unknown" in low or "mailbox unavailable" in low):
+                    return "INVALID", f"{code} {detail.strip()[:80]}"
+                if attempt < max_rotations:
+                    new_identity()
+                    time.sleep(1)
+                    break
+                return "UNKNOWN", f"{code} {detail.strip()[:80]} (protocol/policy — inconclusive)"
     return "UNKNOWN", "server refused probe or temporary failure"
