@@ -52,7 +52,7 @@ def test_new_identity_failure():
 
 
 def test_tor_is_up_true():
-    with mock.patch("engine.bouncecheck.socket.socket") as sock:
+    with mock.patch("engine.bouncecheck.socket.socket"):
         assert bouncecheck.tor_is_up() is True
 
 
