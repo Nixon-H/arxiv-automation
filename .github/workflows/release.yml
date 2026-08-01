@@ -33,7 +33,7 @@ jobs:
 
       - name: Generate SBOM
         run: |
-          cyclonedx-py --pyproject pyproject.toml --output-format json --output sbom.json
+          cyclonedx-py requirements --pyproject pyproject.toml --output-format json --output sbom.json
 
       - name: Get version from tag
         id: version
