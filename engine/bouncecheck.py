@@ -96,19 +96,36 @@ def bootstrap_tor() -> bool:
 
 
 def _rcpt(mx_host: str, sender: str, recipient: str) -> tuple[int, str] | None:
+    """SMTP RCPT probe. Returns (code, msg) or None on network failure.
+
+    Uses EHLO with HELO fallback, and upgrades to STARTTLS when the server
+    advertises it (many MXes refuse unauthenticated MAIL otherwise).
+    """
     import smtplib
 
     socket.create_connection = _socks_create
     try:
         s = smtplib.SMTP(mx_host, SMTP_PORT, timeout=TIMEOUT)
-        s.ehlo("gmail.com")
-        s.mail(sender)
-        code, msg = s.rcpt(recipient)
         try:
-            s.quit()
-        except Exception:
-            pass
-        return code, msg.decode("utf-8", "replace") if isinstance(msg, bytes) else str(msg)
+            if not s.ehlo("gmail.com"):
+                s.helo("gmail.com")
+            caps = s.esmtp_features
+            if "starttls" in caps:
+                try:
+                    s.starttls()
+                    s.ehlo("gmail.com")
+                except Exception:
+                    pass
+            code, msg = s.mail(sender)
+            if code >= 400:
+                return code, (msg.decode("utf-8", "replace") if isinstance(msg, bytes) else str(msg)) + " (at MAIL stage)"
+            code, msg = s.rcpt(recipient)
+            return code, msg.decode("utf-8", "replace") if isinstance(msg, bytes) else str(msg)
+        finally:
+            try:
+                s.quit()
+            except Exception:
+                pass
     except smtplib.SMTPServerDisconnected:
         return None
     except smtplib.SMTPConnectError:
@@ -139,7 +156,7 @@ def check_email(email: str, max_rotations: int = 3) -> tuple[str, str]:
     mxs = get_mx(domain)
     if not mxs:
         return "INVALID", "no MX records for domain"
-    sender = "bouncecheck@example.com"
+    sender = os.environ.get("BOUNCE_SENDER", "bouncecheck@example.com")
     for attempt in range(max_rotations + 1):
         catchall_result = _rcpt(mxs[0], sender, f"{_random_local()}@{domain}")
         catchall_code = catchall_result[0] if catchall_result else None
@@ -161,6 +178,12 @@ def check_email(email: str, max_rotations: int = 3) -> tuple[str, str]:
                         break
                     return "UNKNOWN", f"{code} {detail.strip()[:80]} (IP reputation — exit rotated {attempt}x)"
                 if code in (551, 553):
+                    if "auth" in low and ("require" in low or "authenticat" in low):
+                        if attempt < max_rotations:
+                            new_identity()
+                            time.sleep(1)
+                            break
+                        return "UNKNOWN", f"{code} {detail.strip()[:80]} (server requires auth — cannot verify anonymously)"
                     return "INVALID", f"{code} {detail.strip()[:80]}"
                 if code == 550 and ("5.1.1" in low or "5.2.1" in low or "5.1.10" in low or "does not exist" in low or "user unknown" in low or "mailbox unavailable" in low):
                     return "INVALID", f"{code} {detail.strip()[:80]}"
