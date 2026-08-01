@@ -139,6 +139,14 @@ class Database:
                     value TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS email_checks (
+                    email TEXT PRIMARY KEY,
+                    verdict TEXT NOT NULL,
+                    mx_host TEXT DEFAULT '',
+                    detail TEXT DEFAULT '',
+                    checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_sends_recipient ON sends(recipient_id);
                 CREATE INDEX IF NOT EXISTS idx_sends_status ON sends(status);
                 CREATE INDEX IF NOT EXISTS idx_sends_timestamp ON sends(timestamp);
@@ -146,7 +154,7 @@ class Database:
             """)
         self._migrate()
 
-    SCHEMA_VERSION = 5
+    SCHEMA_VERSION = 6
 
     MIGRATIONS: dict[int, list[str]] = {
         1: [
@@ -162,6 +170,15 @@ class Database:
         4: [
             "ALTER TABLE recipients ADD COLUMN last_replied_at TEXT DEFAULT ''",
             "ALTER TABLE recipients ADD COLUMN followup_count INTEGER DEFAULT 0",
+        ],
+        5: [
+            """CREATE TABLE IF NOT EXISTS email_checks (
+                email TEXT PRIMARY KEY,
+                verdict TEXT NOT NULL,
+                mx_host TEXT DEFAULT '',
+                detail TEXT DEFAULT '',
+                checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""",
         ],
     }
 
@@ -198,6 +215,24 @@ class Database:
 
     def get_recipient_by_hash(self, email_hash: str) -> dict[str, Any] | None:
         return self.fetchone("SELECT * FROM recipients WHERE email_hash = ?", (email_hash,))
+
+    # --- Email deliverability checks ---
+
+    def save_check(self, email: str, verdict: str, mx_host: str = "", detail: str = "") -> None:
+        self.execute(
+            """INSERT INTO email_checks (email, verdict, mx_host, detail)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(email) DO UPDATE SET
+                 verdict = excluded.verdict,
+                 mx_host = excluded.mx_host,
+                 detail = excluded.detail,
+                 checked_at = CURRENT_TIMESTAMP""",
+            (email, verdict, mx_host, detail),
+        )
+
+    def get_check_verdict(self, email: str) -> str:
+        row = self.fetchone("SELECT verdict FROM email_checks WHERE email = ?", (email,))
+        return row["verdict"] if row else ""
 
     def count_recipients(self) -> int:
         r = self.fetchone("SELECT COUNT(*) as cnt FROM recipients")

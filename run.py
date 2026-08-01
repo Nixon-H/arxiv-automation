@@ -66,6 +66,8 @@ Examples:
                        help="List recipients due for follow-up (default 7 days; combine with --send N to send)")
     group.add_argument("--mark-replied", metavar="EMAIL",
                        help="Mark a recipient as replied (stops follow-ups)")
+    group.add_argument("--precheck", action="store_true",
+                       help="Verify email deliverability (MX + RCPT via Tor) for all records before sending")
 
     parser.add_argument("--send", type=int, dest="send_n", default=0,
                         help="Number of emails to send in batch (with --live)")

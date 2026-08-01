@@ -4,7 +4,7 @@ from core.database import Database
 def test_init():
     db = Database(":memory:")
     db.initialize()
-    assert db.get_meta("schema_version", "0") == "5"
+    assert db.get_meta("schema_version", "0") == "6"
 
 
 def test_recipient_crud():
@@ -75,12 +75,13 @@ def test_schema_migration():
     db = Database(":memory:")
     db.initialize()
     ver = db.get_meta("schema_version", "0")
-    assert ver == "5"
+    assert ver == "6"
     history = db.get_meta("migration_history", "")
     assert "1" in history
     assert "2" in history
     assert "3" in history
     assert "4" in history
+    assert "5" in history
 
 
 def test_send_record(tmp_path):

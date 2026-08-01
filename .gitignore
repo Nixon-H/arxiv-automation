@@ -3,6 +3,7 @@
 
 # State and progress
 data/
+*.db
 *.bak
 
 # Logs

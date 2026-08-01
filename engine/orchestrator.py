@@ -97,6 +97,10 @@ class OrchestrationRunner:
             self.run_pre_flight_checks()
             return
 
+        if self.args.precheck:
+            self.run_precheck()
+            return
+
         if self.args.reset_progress:
             self.db.set_progress_index(0)
             AppLogger.success("Progress reset.")
@@ -358,6 +362,45 @@ class OrchestrationRunner:
             )
         return groups
 
+    def run_precheck(self) -> None:
+        from engine.bouncecheck import check_email
+
+        contacts_override = getattr(self.args, "contacts", "") or ""
+        input_file = None
+        if contacts_override and os.path.exists(contacts_override):
+            input_file = contacts_override
+        else:
+            for candidate in ["endorsers.txt", "endorsers.csv", "endorsers.json", "endorsers.yaml", "endorsers.xlsx"]:
+                if os.path.exists(candidate):
+                    input_file = candidate
+                    break
+        if not input_file:
+            AppLogger.error("No endorser data file found to precheck.")
+            return
+        records, _ = DataParser.auto_detect_with_stats(input_file)
+        if not records:
+            AppLogger.error("No records parsed from input file.")
+            return
+        emails = sorted({r["email"] for r in records})
+        AppLogger.info(f"Prechecking {len(emails)} unique addresses (MX + RCPT via Tor)...")
+        counts: dict[str, int] = {}
+        for i, email in enumerate(emails, 1):
+            try:
+                verdict, detail = check_email(email)
+            except Exception as e:
+                verdict, detail = "UNKNOWN", f"error: {e}"
+            counts[verdict] = counts.get(verdict, 0) + 1
+            self.db.save_check(email, verdict, "", detail)
+            AppLogger.info(f"[{i}/{len(emails)}] {email}: {verdict} — {detail}")
+        AppLogger.info(
+            f"Precheck complete: {counts.get('VALID', 0)} VALID, "
+            f"{counts.get('INVALID', 0)} INVALID, {counts.get('CATCHALL', 0)} CATCHALL, "
+            f"{counts.get('UNKNOWN', 0)} UNKNOWN"
+        )
+        invalid = [e for e in emails if self.db.get_check_verdict(e) == "INVALID"]
+        if invalid:
+            AppLogger.warn(f"INVALID (auto-skipped on --live): {', '.join(invalid)}")
+
     def _create_sample_endorsers(self) -> None:
         sample = (
             "Elena Vasquez is qualified to endorse.\n"
@@ -545,6 +588,13 @@ class OrchestrationRunner:
         if self.db.is_email_sent(email_hash):
             AppLogger.warn(f"Duplicate at {idx}: {email}")
             self.stats["duplicates"] += 1
+            _advance(idx + 1)
+            return True
+
+        verdict = self.db.get_check_verdict(email)
+        if verdict in ("INVALID", "UNKNOWN"):
+            AppLogger.warn(f"Skipping {verdict} address at {idx}: {email} (prechecked deliverability)")
+            self.stats["skipped"] += 1
             _advance(idx + 1)
             return True
 
