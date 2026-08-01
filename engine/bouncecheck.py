@@ -137,5 +137,9 @@ def check_email(email: str) -> tuple[str, str]:
             low = detail.lower()
             if "blocked" in low or "spamhaus" in low or "rejected" in low or "5.7.1" in low or "policy" in low or "reputation" in low:
                 return "UNKNOWN", f"{code} {detail.strip()[:80]} (IP reputation — retry via different exit)"
-            return "INVALID", f"{code} {detail.strip()[:80]}"
+            if code in (551, 553):
+                return "INVALID", f"{code} {detail.strip()[:80]}"
+            if code == 550 and ("5.1.1" in low or "5.2.1" in low or "5.1.10" in low or "does not exist" in low or "user unknown" in low or "mailbox unavailable" in low):
+                return "INVALID", f"{code} {detail.strip()[:80]}"
+            return "UNKNOWN", f"{code} {detail.strip()[:80]} (protocol/policy — inconclusive)"
     return "UNKNOWN", "server refused probe or temporary failure"
